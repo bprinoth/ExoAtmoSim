@@ -12,6 +12,58 @@ import petitRADTRANS as pRT
 from petitRADTRANS import nat_cst as nc
 from petitRADTRANS.physics import guillot_global
 
+### THE BIG DICTIONARY
+
+species_dictionary = { # from FastChem notation to pRT notation
+    "Al": "Al",
+    "Fe": "Fe",
+    "H2S1": "H2S_main_iso",
+    "H3N1": "NH3_main_iso",
+    "Ti": "Ti",		      
+    "B": "B",
+    "H1Fe1": "FeH_main_iso",
+    "Be": "Be",
+    "CO": "CO_main_iso",
+    "Fe1+": "FeII",
+    "H1C1N1_1": "HCN_main_iso",
+    "O": "O", 
+    "V": "V",
+    "V1+": "VII",
+    "H2C2": "C2H2_main_iso",
+    "Na": "Na",
+    "O2": "O2",
+    "K": "K",
+    "C": "C",
+    "H4C1": "CH4_main_iso",
+    "C1O2": "CO2_main_iso",
+    "O1Ti1": "TiO_48_Exomol_McKemmish",
+    "O3": "O3_main_iso",
+    "Mg": "Mg",
+    "Li": "Li", 
+    "Y": "Y",
+    "Ca": "Ca",
+    "H3P1": "PH3_main_iso",
+    "Ca1+": "CaII",
+    "Mg1+": "MgII",
+    "H2O1": " H2O_main_iso",
+    "Si": "Si",
+    "Cr": "Cr",
+    "N": "N",  
+    "O1Si1": "SiO_main_iso"
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
 ######### HELPER FUNCTIONS - DEFINED OUTSIDE
 # # paramget allows you to get parameters from a config file instead of typing all the stuff into a list
 
@@ -122,10 +174,10 @@ class Planet:
             self.gp = 10**paramget('logp', self.dp) # logp in cgs units
         except:
             self.Mp = paramget('Mp', self.dp) # Mp in Mjup
-            self.gp = (const.G * self.Mp * u.Mjup / (self.Rs * u.Rjup)**2).to('cm/s2') # computes the surface gravity from the mass instead
+            self.gp = (const.G * self.Mp * u.Mjup / (self.Rs * u.Rjup)**2).to('cm/s2').value # computes the surface gravity from the mass instead
             
-        self.pRT_species = paramget('pRT', self.dp).split(',')
-        self.FastChem_species = paramget('FastChem', self.dp).split(',')
+        #self.pRT_species = paramget('pRT', self.dp).split(',')
+        #self.FastChem_species = paramget('FastChem', self.dp).split(',')
         self.wl_range = wl_range
         
         # Condensation:
@@ -140,8 +192,8 @@ class Planet:
             
             if self.tp_profile == 'isothermal':
             
-                self.temp = paramget('T', self.dp) # temperature in Kelvin
-                self.layers = paramget('layers', self.dp) # layers in your atmosphere
+                self.temp = paramget('Teq', self.dp) # temperature in Kelvin
+                self.layers = int(paramget('layers', self.dp)) # layers in your atmosphere
                 
             elif self.tp_profile == 'guillot':
                 
@@ -281,12 +333,12 @@ class Planet:
         fastchem_flag = self.fastchem.calcDensities(input_data, output_data)
         
         print("[INFO] FastChem reports:")
-        print("  -", pyfastchem.FASTCHEM_MSG[fastchem_flag])
+        print("[INFO]  ---", pyfastchem.FASTCHEM_MSG[fastchem_flag])
 
         if np.amin(output_data.element_conserved[:]) == 1:
-            print("  --- element conservation: ok")
+            print("[INFO]  --- element conservation: ok")
         else:
-            print("  --- element conservation: fail")
+            print("[INFO]  --- element conservation: fail")
             
             
         #convert the output into a numpy array
@@ -307,18 +359,7 @@ class Planet:
         
         return 0
         
-    def compute_transmission_spectrum(self, spectrum_species):
-        
-        try:
-            index = self.fastchem.getSpeciesIndex(spectrum_species[0])
-        
-        except:
-            print("[WARNING] I cannot find your chemistry. Computing chemistry from scratch.")
-            self.compute_chemistry()
-            index = self.fastchem.getSpeciesIndex(spectrum_species[0])
-        
-        return 0
-    
+   
     def compute_single_species_template(self, template_species, save_name, mode='transmission', clouds=None, hazes=None): 
         
         if len(template_species) == 1:
@@ -335,20 +376,23 @@ class Planet:
         
 
         try:
-            index = self.fastchem.getSpeciesIndex(template_species)
+            index = self.fastchem.getSpeciesIndex(template_species[0])
         
         except:
             print("[WARNING] I cannot find your chemistry. Computing chemistry from scratch.")
             self.compute_chemistry()
-            index = self.fastchem.getSpeciesIndex(template_species)
+            index = self.fastchem.getSpeciesIndex(template_species[0])
             
         
         template_components = ['H2', 'He'] + template_species
+        template_species_pRT_notation = [species_dictionary[template_species[i]] for i in range(len(template_species))]
+        template_components_pRT_notation = ['H2', 'He'] + template_species_pRT_notation
+        
         self.mass_fractions = np.zeros((len(template_components), len(self.pressure)))
         self.indices = []
         
         print(f"[INFO] Computing mass fractions for {template_components}")
-        for i, species enumerate(template_components):
+        for i, species in enumerate(template_components):
             
             index = self.fastchem.getSpeciesIndex(species)
             self.indices.append(index)
@@ -357,7 +401,7 @@ class Planet:
             
             molecular_weight = self.fastchem.getSpeciesMolecularWeight(index)
             
-            self.mass_fraction[i] = (VMR * molecular_weight / self.mean_molecular_weight)
+            self.mass_fractions[i] = (VMR * molecular_weight / self.mean_molecular_weight)
         
         
         print(f'[INFO] Setting up radiative transfer object with pRT')
@@ -375,25 +419,25 @@ class Planet:
             Pcloud = None
             
         elif clouds == 'Rayleigh':
-            print('[INFO] Assuming Rayleigh-like scattering')
+            print('[INFO] Assuming Rayleigh-like scattering.')
             kappa_zero = 0.01
             gamma_scat = -4
             Pcloud = None
             
         elif clouds == 'weak': # powerlaw weak
-            print('[INFO] Assuming weak scattering')
+            print('[INFO] Assuming weak scattering.')
             kappa_zero = 0.01
             gamma_scat = -2.
             Pcloud = None
             
         elif clouds == 'flat': # flat opacity
-            print('[INFO] Assuming a flat opacity')
+            print('[INFO] Assuming a flat opacity.')
             kappa_zero = 0.01
             gamma_scat = 0.
             Pcloud = None
             
         elif clouds == 'positiv': # 1, positive
-            print('[INFO] Assuming the exotic case of a positiv opacity slope')
+            print('[INFO] Assuming the exotic case of a positiv opacity slope.')
             kappa_zero = 0.01
             gamma_scat = 1. 
             Pcloud = None
@@ -411,30 +455,32 @@ class Planet:
             Pcloud = None
           
         if mode == 'transmission':  
-            if hazes in not None:
-                print(f'[INFO] Assuming hazes with a factor {hazes}')
+            if hazes is not None:
+                print(f'[INFO] Assuming hazes with a factor {hazes}.')
                 haze_factor = hazes
             
             else:
-                print('[INFO] Ignoring hazes')
+                print('[INFO] Ignoring hazes.')
                 haze_factor = None
         else:
             print('[INFO] Ignoring hazes for emission.')
+            
+            
+        mass_fractions_dict = {}
+            
+        for i in range(len(self.mass_fractions)):
+            mass_fractions_dict[template_components[i]] = self.mass_fractions[i]
+            MMW = self.mean_molecular_weight
+                
         
         if mode == 'transmission':
             
-            atmosphere = pRT.Radtrans(line_species = [template_species],
+            atmosphere = pRT.Radtrans(line_species = template_species_pRT_notation,
                         rayleigh_species = ['H2', 'He'],
                         continuum_opacities = ['H2-H2', 'H2-He'],
                         wlen_bords_micron = self.wl_range, mode='lbl')
         
             atmosphere.setup_opa_structure(self.pressure)
-
-            mass_fractions_dict = {}
-            
-            for i in range(len(self.mass_fraction)):
-                mass_fractions_dict[template_components[i]] = self.mass_fraction[i]
-                MMW = self.mean_molecular_weight
         
             
             R_pl = self.Rp * nc.r_jup_mean #weird pRT components
@@ -464,7 +510,7 @@ class Planet:
             
         elif mode == 'emission_no_scat':
             
-            atmosphere = pRT.Radtrans(line_species = [template_species],
+            atmosphere = pRT.Radtrans(line_species = template_species_pRT_notation,
                         rayleigh_species = ['H2', 'He'],
                         continuum_opacities = ['H2-H2', 'H2-He'],
                         wlen_bords_micron = self.wl_range, mode='lbl',
@@ -472,13 +518,6 @@ class Planet:
                         )
         
             atmosphere.setup_opa_structure(self.pressure)
-
-            mass_fractions_dict = {}
-            
-            for i in range(len(self.mass_fraction)):
-                mass_fractions_dict[template_components[i]] = self.mass_fraction[i]
-                MMW = self.mean_molecular_weight
-        
             
             R_pl = self.Rp * nc.r_jup_mean 
             gravity = self.gp
@@ -517,21 +556,14 @@ class Planet:
             
         elif mode == 'emission_scat':
             
-            atmosphere = pRT.Radtrans(line_species = [template_species],
+            atmosphere = pRT.Radtrans(line_species = template_species_pRT_notation,
                         rayleigh_species = ['H2', 'He'],
                         continuum_opacities = ['H2-H2', 'H2-He'],
                         wlen_bords_micron = self.wl_range, mode='lbl',
                         do_scat_emis = True
                         )
         
-            atmosphere.setup_opa_structure(self.pressure)
-
-            mass_fractions_dict = {}
-            
-            for i in range(len(self.mass_fraction)):
-                mass_fractions_dict[template_components[i]] = self.mass_fraction[i]
-                MMW = self.mean_molecular_weight
-        
+            atmosphere.setup_opa_structure(self.pressure)        
             
             R_pl = self.Rp * nc.r_jup_mean 
             gravity = self.gp
