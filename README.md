@@ -8,6 +8,13 @@ ExoSim provides a short simulation package to simulate the detection of atmosphe
 
 ## Supported instruments (as of February 2024)
 
+- ESPRESSO:
+- SPIRou:
+- ANDES:
+- HARPS:
+- HARPS-N:
+- ANDES: 
+
 
 ## Additional files
 
