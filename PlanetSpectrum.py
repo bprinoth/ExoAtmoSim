@@ -10,6 +10,7 @@ from astropy.io import fits
 import petitRADTRANS as pRT
 #from petitRADTRANS.radtrans import Radtrans
 from petitRADTRANS import nat_cst as nc
+from petitRADTRANS.physics import guillot_global
 
 ######### HELPER FUNCTIONS - DEFINED OUTSIDE
 # # paramget allows you to get parameters from a config file instead of typing all the stuff into a list
@@ -81,7 +82,31 @@ def paramget(keyword,dp,full_path=False,force_string = False):
         # print(keywords)
         raise Exception('Keyword %s is not present in parameter file at %s' % (keyword,dp)) from None
 
+def BB(temperature): # BB function from frei @ Brett Morris.
+    import numpy as np
+    
+    """
+    Compute the blackbody flux
 
+    Parameters
+    ----------
+    temperature : ~astropy.units.Quantity
+        Temperature of the blackbody
+
+    Returns
+    -------
+    bb : function
+        Returns a function which takes the wavelength as an
+        `~astropy.units.Quantity` and returns the Planck flux
+    """
+    # h = 6.62607015e-34  # J s
+    # c = 299792458.0  # m/s
+    # k_B = 1.380649e-23  # J/K
+    return lambda wavelength: (
+            2 * const.h * const.c ** 2 / np.power(wavelength, 5) /
+            np.expm1(const.h * const.c / (wavelength * const.k_B * temperature))
+    )
+    
 
 class Planet:
 
@@ -111,26 +136,78 @@ class Planet:
             self.tp_profile = np.loadtxt(paramget('tp_profile', self.dp))
             
         except:
-            self.tp_profile = 'isothermal'
-            self.temp = paramget('T', self.dp) # temperature in Kelvin
-            self.layers = paramget('layers', self.dp) # layers in your atmosphere
+            self.tp_profile = paramget('tp_profile', self.dp)
+            
+            if self.tp_profile == 'isothermal':
+            
+                self.temp = paramget('T', self.dp) # temperature in Kelvin
+                self.layers = paramget('layers', self.dp) # layers in your atmosphere
+                
+            elif self.tp_profile == 'guillot':
+                
+                # try figuring out the values, otherwise we default back
+                try: self.kappa_IR = paramget('kappa_IR', self.dp)
+                except: self.kappa_IR = 0.01
+                
+                try: self.gamma = paramget('gamma', self.dp)
+                except: self.gamma = 0.4
+
+                try: self.T_int = paramget('T_int', self.dp)
+                except: self.T_int = 200 
+                
+                self.temp = paramget('T', self.dp) # eq. temperature in Kelvin
+                
+            
+            
             
         self.FastChem_input_path = paramget('FastChem_input', self.dp)
-        self.metallicity = paramget('metallicity', self.dp)
         self.p0 = paramget('p0', self.dp) # reads ref pressure in bar
+        
+        # some other optional inputs:
+        
+        # metallicity
+        try: 
+            self.metallicity = paramget('metallicity', self.dp)
+        except: 
+            self.metallicity = 0.0
+            
+        # C/O ratio, because people care about this it seems
+        
+        try: 
+            self.C_O = paramget('C/O', self.dp)
+        except: 
+            self.C_O = 'solar'
+        
+        # clouds?
+        #
+        
             
     def compute_chemistry(self):
         
         if self.tp_profile == 'isothermal':
             print(f"[INFO] Assuming an isothermal temperature pressure profile with T={self.temp} K over {self.layers} layers.")
-            
             self.temperature = np.full(self.layers, self.temp)
             self.pressure = np.logspace(-9, 1, num=self.layers)
             
-        else:
-            print(f"[INFO] Assuming your provided temperature pressure profile")
-            self.temperature = self.tp_profile[:,0]
-            self.pressure = self.tp_profile[:,1] # This assumes you have a txt file with your temperatures in col 0 in K and pressures in col 1 in bar
+        elif self.tp_profile == 'guillot':
+            
+            print(f"[INFO] Assuming Guillot temperature pressure profile over {self.layers} layers.")
+            print(f"[INFO] kappa_IR = {self.kappa_IR}, gamma = {self.gamma}, T (int) = {self.T_int} K, T (eq) = {self.temp} K")
+            
+            self.pressure = np.logspace(-9, 1, num=self.layers)     
+            self.temperature = guillot_global(self.pressure, self.kappa_IR, self.gamma, self.gp, self.T_int, self.T_equ)     
+            
+        else:  
+            try:
+                print(f"[INFO] Assuming your provided temperature pressure profile")
+                self.temperature = self.tp_profile[:,0]
+                self.pressure = self.tp_profile[:,1] # This assumes you have a txt file with your temperatures in col 0 in K and pressures in col 1 in bar
+                
+            except: 
+                print( "[ERROR] No temperature pressure profile found. Make sure it is in the right format.")
+                print( "[ERROR] --- In case you want to use a built-in profile, pick isothermal or guillot.")
+                print(f"[ERROR] --- Your current setting is {self.tp_profile}.")
+                
         
         # This generates the fastchem input for your run
         input_data = pyfastchem.FastChemInput()
@@ -189,6 +266,15 @@ class Planet:
         else: 
             print(f"[INFO] Assuming solar metallicity.")
             self.abundances = np.array(self.fastchem.getElementAbundances())
+         
+         
+         
+        if self.C_O != 'solar':
+            print(f'[INFO] Changing your C/O ratio to {self.C_O}')
+            index_C = self.fastchem.getGasSpeciesIndex('C')
+            index_O = self.fastchem.getGasSpeciesIndex('O')
+        
+            self.abundances[index_C] = self.abundances[index_O] * self.C_O 
             
             
         print("[INFO] Running FastChem")
@@ -221,13 +307,33 @@ class Planet:
         
         return 0
         
-    def compute_spectrum(self):
+    def compute_transmission_spectrum(self, spectrum_species):
         
-        # needs to be done
+        try:
+            index = self.fastchem.getSpeciesIndex(spectrum_species[0])
+        
+        except:
+            print("[WARNING] I cannot find your chemistry. Computing chemistry from scratch.")
+            self.compute_chemistry()
+            index = self.fastchem.getSpeciesIndex(spectrum_species[0])
+        
         return 0
+    
+    def compute_single_species_template(self, template_species, save_name, mode='transmission', clouds=None, hazes=None): 
         
-    def compute_single_species_transmission_template(self, template_species, save_name):
+        if len(template_species) == 1:
+            print(f'[INFO] Computing single {mode} species template for {template_species[0]}.')
+            #print(f'[INFO] ')
+            self.compute_spectrum(template_species, save_name, mode='transmission', clouds=None, hazes=None, template=True)
+            
+        else: 
+            print(f'[INFO] You should only have one template species for your template. Otherwise consider using the self.compute_spectrum function to produce a spectrum.')
+    
         
+    def compute_spectrum(self, template_species, save_name, mode='transmission', clouds=None, hazes=None, template=False): 
+        # can be transmission or emission, if Pcloud is None, we ignore it, otherwise we set the cloud at that pressure.
+        
+
         try:
             index = self.fastchem.getSpeciesIndex(template_species)
         
@@ -237,8 +343,8 @@ class Planet:
             index = self.fastchem.getSpeciesIndex(template_species)
             
         
-        template_components = ['H2', 'He', template_species]
-        self.mass_fractions = np.zeros((3, len(self.pressure)))
+        template_components = ['H2', 'He'] + template_species
+        self.mass_fractions = np.zeros((len(template_components), len(self.pressure)))
         self.indices = []
         
         print(f"[INFO] Computing mass fractions for {template_components}")
@@ -261,36 +367,206 @@ class Planet:
         print(f'[INFO] ----- g = {self.gp} cm/ s^2')
         print(f'[INFO] ----- Rs = {self.Rs} solar radii')
         print(f'[INFO] ----- p0 = {self.p0} bar')
-    
-        atmosphere = pRT.Radtrans(line_species = [template_species],
+        
+        if clouds is None:
+            print("[INFO] Ignoring clouds.")
+            kappa_zero = None
+            gamma_scat = None 
+            Pcloud = None
+            
+        elif clouds == 'Rayleigh':
+            print('[INFO] Assuming Rayleigh-like scattering')
+            kappa_zero = 0.01
+            gamma_scat = -4
+            Pcloud = None
+            
+        elif clouds == 'weak': # powerlaw weak
+            print('[INFO] Assuming weak scattering')
+            kappa_zero = 0.01
+            gamma_scat = -2.
+            Pcloud = None
+            
+        elif clouds == 'flat': # flat opacity
+            print('[INFO] Assuming a flat opacity')
+            kappa_zero = 0.01
+            gamma_scat = 0.
+            Pcloud = None
+            
+        elif clouds == 'positiv': # 1, positive
+            print('[INFO] Assuming the exotic case of a positiv opacity slope')
+            kappa_zero = 0.01
+            gamma_scat = 1. 
+            Pcloud = None
+            
+        elif type(clouds) == float: # if it is set to a bar value
+            print(f'[INFO] Assuming a cloud deck at P = {clouds} bar.')
+            kappa_zero = None
+            gamma_scat = None
+            Pcloud = clouds
+        
+        else:
+            print("[INFO] Ignoring clouds.")
+            kappa_zero = None
+            gamma_scat = None 
+            Pcloud = None
+          
+        if mode == 'transmission':  
+            if hazes in not None:
+                print(f'[INFO] Assuming hazes with a factor {hazes}')
+                haze_factor = hazes
+            
+            else:
+                print('[INFO] Ignoring hazes')
+                haze_factor = None
+        else:
+            print('[INFO] Ignoring hazes for emission.')
+        
+        if mode == 'transmission':
+            
+            atmosphere = pRT.Radtrans(line_species = [template_species],
                         rayleigh_species = ['H2', 'He'],
                         continuum_opacities = ['H2-H2', 'H2-He'],
                         wlen_bords_micron = self.wl_range, mode='lbl')
         
-        atmosphere.setup_opa_structure(self.pressure)
+            atmosphere.setup_opa_structure(self.pressure)
 
-        mass_fractions_dict = {}
+            mass_fractions_dict = {}
+            
+            for i in range(len(self.mass_fraction)):
+                mass_fractions_dict[template_components[i]] = self.mass_fraction[i]
+                MMW = self.mean_molecular_weight
         
-        for i in range(len(self.mass_fraction)):
-            mass_fractions_dict[template_components[i]] = self.mass_fraction[i]
-            MMW = self.mean_molecular_weight
+            
+            R_pl = self.Rp * nc.r_jup_mean #weird pRT components
+            gravity = self.gp
+            P0 = self.p0
     
-        
-        R_pl = self.Rp * nc.r_jup_mean #weird pRT components
-        gravity = self.gp
-        P0 = self.p0
-        
-        atmosphere.calc_transm(self.temperature, mass_fractions_dict, gravity, MMW, R_pl=R_pl, P0_bar=P0)
+            print('[INFO] Calculating transmission spectrum in planetary radii')
+            atmosphere.calc_transm(self.temperature, mass_fractions_dict, gravity, MMW, R_pl=R_pl, P0_bar=P0, kappa_zero = kappa_zero, gamma_scat = gamma_scat, haze_factor=haze_factor, Pcloud=Pcloud)
 
-        self.wl_nm = (nc.c/atmosphere.freq/1e-4 * u.micron).to(u.nm)
-        self.transit_radius = atmosphere.transm_rad/nc.r_jup_mean
-        
-        print(f'[INFO] Calculating transit depth')
-        self.transit_depth = ((self.transit_radius * u.Rjup)**2 / (self.Rs * u.Rsun)**2).decompose()
+            self.wl_nm = (nc.c/atmosphere.freq/1e-4 * u.micron).to(u.nm)
+            self.transit_radius = atmosphere.transm_rad/nc.r_jup_mean
+            
+            print(f'[INFO] Calculating transit depth')
+            self.transit_depth = ((self.transit_radius * u.Rjup)**2 / (self.Rs * u.Rsun)**2).decompose()
 
-        print(f'[INFO] Saving transmission spectrum to output/{save_name}.fits')
-        print(f'[INFO] The template is in nm, and vacuum.')
-        fits.writeto(save_name+'.fits', np.vstack((self.wl_nm.value, 1.- self.transit_depth.value)), overwrite=True)
-        # in nm, in vac
+            if template:
+                print(f'[INFO] Saving transmission template to output/{save_name}.fits')
+                print(f'[INFO] The template is in nm, and vacuum, in transit radii.')
+                
+            else: 
+                print(f'[INFO] Saving transmission spectrum to output/{save_name}.fits')
+                print(f'[INFO] The spectrum is in nm, and vacuum, in transit radii.')
+                
+            
+            fits.writeto(save_name+'.fits', np.vstack((self.wl_nm.value, 1.- self.transit_depth.value)), overwrite=True)
+            # in nm, in vac
+            
+        elif mode == 'emission_no_scat':
+            
+            atmosphere = pRT.Radtrans(line_species = [template_species],
+                        rayleigh_species = ['H2', 'He'],
+                        continuum_opacities = ['H2-H2', 'H2-He'],
+                        wlen_bords_micron = self.wl_range, mode='lbl',
+                        do_scat_emis = False
+                        )
         
+            atmosphere.setup_opa_structure(self.pressure)
 
+            mass_fractions_dict = {}
+            
+            for i in range(len(self.mass_fraction)):
+                mass_fractions_dict[template_components[i]] = self.mass_fraction[i]
+                MMW = self.mean_molecular_weight
+        
+            
+            R_pl = self.Rp * nc.r_jup_mean 
+            gravity = self.gp
+            P0 = self.p0
+            
+            print('[INFO] Calculating emission spectrum without scattering in planetary flux units')
+            atmosphere.calc_flux(self.temperature, mass_fractions_dict, gravity, MMW, kappa_zero = kappa_zero, gamma_scat = gamma_scat, Pcloud=Pcloud)
+            
+            self.wl_nm = (nc.c/atmosphere.freq/1e-4 * u.micron).to(u.nm)
+            self.flux = atmosphere.flux 
+            
+            if template==False:
+                print(f'[INFO] Saving emission spectrum to output/{save_name}.fits')
+                print(f'[INFO] The spectrum is in nm, and vacuum, in planetary flux [erg / cm2 / s / Hz].')
+                
+                fits.writeto(save_name+'.fits', np.vstack((self.wl_nm.value, self.flux)), overwrite=True)
+                
+            else:
+                print(f'[INFO] Saving emission template to output/{save_name}.fits')
+                print(f'[INFO] The spectrum is in nm, and vacuum, in Fp/Fs (flux contrast).')
+                
+                self.Teff = paramget('Teff', self.dp)
+                print(f"[INFO] Assuming a blackbody for the star at T_eff = {self.Teff} K.")
+                
+                # Unit conversion from hell
+                prt_unit = u.Unit('erg/cm2/s/Hz')
+                target_unit = u.Unit('erg/cm3/s')
+                
+                self.flux_frei = (self.flux * prt_unit).to(target_unit, u.spectral_density(self.wl_nm))
+                
+                Fs = BB(self.Teff * u.K)(self.wl_nm)
+                self.FpFs = (self.flux_frei * (self.Rp * u.Rjup)** 2 / (Fs * (self.Rs * u.Rsun)**2)).decompose()
+                
+                fits.writeto(save_name+'.fits', np.vstack((self.wl_nm.value, self.FpFs)), overwrite=True)
+                
+            
+        elif mode == 'emission_scat':
+            
+            atmosphere = pRT.Radtrans(line_species = [template_species],
+                        rayleigh_species = ['H2', 'He'],
+                        continuum_opacities = ['H2-H2', 'H2-He'],
+                        wlen_bords_micron = self.wl_range, mode='lbl',
+                        do_scat_emis = True
+                        )
+        
+            atmosphere.setup_opa_structure(self.pressure)
+
+            mass_fractions_dict = {}
+            
+            for i in range(len(self.mass_fraction)):
+                mass_fractions_dict[template_components[i]] = self.mass_fraction[i]
+                MMW = self.mean_molecular_weight
+        
+            
+            R_pl = self.Rp * nc.r_jup_mean 
+            gravity = self.gp
+            P0 = self.p0
+            
+            self.wl_nm = (nc.c/atmosphere.freq/1e-4 * u.micron).to(u.nm)
+            self.flux = atmosphere.flux
+            
+            print('[INFO] Calculating emission spectrum with scattering in planetary flux units')
+            atmosphere.calc_flux(self.temperature, mass_fractions_dict, gravity, MMW, kappa_zero = kappa_zero, gamma_scat = gamma_scat, Pcloud=Pcloud)
+        
+            
+            self.wl_nm = (nc.c/atmosphere.freq/1e-4 * u.micron).to(u.nm)
+            self.flux = atmosphere.flux 
+            
+            if template==False:
+                print(f'[INFO] Saving emission spectrum to output/{save_name}.fits')
+                print(f'[INFO] The spectrum is in nm, and vacuum, in planetary flux [erg / cm2 / s / Hz].')
+                
+                fits.writeto(save_name+'.fits', np.vstack((self.wl_nm.value, self.flux)), overwrite=True)
+                
+            else:
+                print(f'[INFO] Saving emission template to output/{save_name}.fits')
+                print(f'[INFO] The spectrum is in nm, and vacuum, in Fp/Fs (flux contrast).')
+                
+                self.Teff = paramget('Teff', self.dp)
+                print(f"[INFO] Assuming a blackbody for the star at T_eff = {self.Teff} K.")
+                
+                # Unit conversion from hell
+                prt_unit = u.Unit('erg/cm2/s/Hz')
+                target_unit = u.Unit('erg/cm3/s')
+                
+                self.flux_frei = (self.flux * prt_unit).to(target_unit, u.spectral_density(self.wl_nm))
+                
+                Fs = BB(self.Teff * u.K)(self.wl_nm)
+                self.FpFs = (self.flux_frei * (self.Rp * u.Rjup)** 2 / (Fs * (self.Rs * u.Rsun)**2)).decompose()
+                
+                fits.writeto(save_name+'.fits', np.vstack((self.wl_nm.value, self.FpFs)), overwrite=True)
