@@ -1,0 +1,34 @@
+P					1.3600309
+a					0.024
+aRstar				5.4
+Rp					1.21
+Rs					0.910
+Mp					1.7
+K					0.3219
+RpRstar				0.1302
+vsys    			0.0
+loggp    			3.441
+RA					02:28:37.0
+DEC     			-07:03:38
+Tc      			2455870.44977
+resolution			140000
+inclination			89.4
+vsini				4.0
+air					True
+long    			-70.4039
+lat     			-24.6272
+elev    			2635.0
+Teff    			5500
+logg    			4.5
+SNR     			300
+exp_time			500
+T14       			5
+readout				68
+condensation		False
+FastChem_input  	/home/bibi/GitHub/FastChem/input/
+p0  				1 #bar
+tp_profile  	    guillot #t-p-billy.txt
+layers	  	  	    50
+T    	      	    3000
+Ti/H         	    1.81
+chemistry           FastChem
