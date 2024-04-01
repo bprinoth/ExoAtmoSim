@@ -68,7 +68,9 @@ W77Ab.compute_chemistry()
 
 ```
 
-Now we need to define the species in our atmosphere. Note that there is a dictionary at the beginning of PlanetSpectrum.py that translates between the FastChem Cond (Hill notation) and pRT notation. These may be subject to change, so make sure you check those out before you run it!
+Now we need to define the species in our atmosphere. 
+Note that there is a dictionary at the beginning of PlanetSpectrum.py that translates between the FastChem Cond (Hill notation) and pRT notation, see dic.txt file for current dict.
+These may be subject to change, so make sure you check those out before you run it!
 
 ```python
 
@@ -100,3 +102,5 @@ W77Ab.compute_single_species_template(
 )
 ```
 
+
+This has now produced an emission spectrum in fp/fs (flux density contrast) assuming an underlying black body for the star. 
