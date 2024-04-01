@@ -32,12 +32,16 @@ To generate a simple atmosphere, you need to make a few choices:
 2) **Condensation:** Using FastChem Cond, you can opt for condensation through rainout, equilibrium condensation or no condensation.
 3) **T-p profile:** You can use an isothermal profile, a Guillot profile or a custom profile.
 
-These choices are all taken in the config file.
+These choices are all taken in the config file, in this example located in a folder called 'testing_the_module'. See config_example for an example file.
 
-<code> W77Ab = PlanetSpectrum.Planet(
+```python
+ W77Ab = PlanetSpectrum.Planet(
     dp='testing_the_module/', 
     wl_range=[0.3, 0.8], 
 )
+
+```
+```python
 
 W77Ab.compute_chemistry()
 
@@ -48,4 +52,6 @@ template_species = [
     'C1O1',
     'Fe',
     'Ti'
-                   ]</code>
+                   ]
+
+```
