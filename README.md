@@ -160,3 +160,9 @@ run.start_run(f'W77.dat', xcor_parallel=False)
 ## Eccentric orbits
 
 We all know this: Eccentric orbits are special. Everything above works like a charm for circular orbits, but as soon as we introduce eccentricity, it all becomes significantly more difficult. The simulation tool allows for creating mock data with eccentric orbits, but tayph is not equipped (yet) with the same functionality. So you need to turn off the Keplerian correction that corrects the orbital motion and do that outside, moving your spectra to the rest-frame of the star. This then produces your ccf (cleaning steps). From there you need to recalculate the out and in transit exposures (if that is what you do!) because tayph intrinsically assumes a circular orbit again. 
+
+When generating your exposures for the eccentric orbit, you need to be a bit careful because 'orbital phase' is not a thing anymore. Much more, you need the true anomaly. So you want to figure out first at which phases your planet is where you think it should be. You can use the RVEstimator for this (rv.bibianaprinoth.ch for an interactive tool). Then you produce your phases and tell the code which phases to consider.
+
+```python
+mock.create_mock_obs(f'TOI-3362-mock-ANDES.dat', create_obs_file=True, mode='ANDES', real_data=False, spec='depth', rot=True, eccentric_orbit=True, phase_range=phases) # this is an example for a transiting planet. Phases are not the true anomaly.
+```
