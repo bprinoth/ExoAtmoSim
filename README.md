@@ -34,16 +34,43 @@ To generate a simple atmosphere, you need to make a few choices:
 
 These choices are all taken in the config file, in this example located in a folder called 'testing_the_module'. See config_example for an example file.
 
+Let us first read in the paths and generate an object for the planet spectrum.
+
 ```python
+
+import sys
+
+# this is just me adding my petitRADTRANS & FastChem to the path
+
+sys.path.insert(0,'/home/bibi/GitHub/petitRADTRANS/') 
+sys.path.insert(0, '/home/bibi/.local/lib/python3.8/site-packages/lib/python3.8/site-packages/pyfastchem-3.0-py3.8-linux-x86_64.egg/')
+
+# and this is just me setting the pRT path.
+import os
+os.environ['pRT_input_data_path'] = '/usr/local/src/petitRADTRANS/petitRADTRANS/input_data/'
+os.environ["OMP_NUM_THREADS"] = "1"
+
+import PlanetSpectrum # this is where all the magic happens.
+
+# Reading in the config file located at testing_the_module/ and initiating the Planet object with a spectrum over the wavelength range from 0.3 to 0.8 micron
  W77Ab = PlanetSpectrum.Planet(
     dp='testing_the_module/', 
     wl_range=[0.3, 0.8], 
 )
 
 ```
+Now we can compute the chemistry according to your settings using:
+
 ```python
 
+# Computing the chemistry according to your settings. This computes the chemistry for all the molecules and atoms in FastChem Cond (see their documentation).
 W77Ab.compute_chemistry()
+
+```
+
+Now we need to define the species in our atmosphere. Note that there is a dictionary at the beginning of PlanetSpectrum.py that translates between the FastChem Cond (Hill notation) and pRT notation. These may be subject to change, so make sure you check those out before you run it!
+
+```python
 
 template_species = [
     'O1Ti1',
@@ -54,4 +81,22 @@ template_species = [
     'Ti'
                    ]
 
+# this produces now the spectrum with your species and saves it. Make sure you check out the different modes. 
+
+W77Ab.compute_spectrum(
+   template_species=template_species, # including those species
+   save_name='imaginary', #saves here .fits
+   mode='emission_no_scat' # could also be emission_scat, transmission
+)
 ```
+
+If you now want to produce the template for your cc, you can run for example:
+
+```python
+W77Ab.compute_single_species_template(
+    template_species=['O1Ti1'], 
+    save_name='TiO_template',
+    mode='emission_no_scat'
+)
+```
+
