@@ -118,11 +118,11 @@ This has now produced an emission spectrum in fp/fs (flux density contrast) assu
 ## So how do I predict my cross-correlation signal now?
 
 Hold on a second. We first need to produce our simulated data!
-This step is easily done if you have a bit of an idea how tayph works. If not, go check out the documentation. You'll need a standard tayph runfile (for us 'W77.dat') with one added line:
+This step is easily done if you have a bit of an idea how tayph works. If not, go check out the documentation. You'll need a standard tayph runfile (for us 'W77.dat', make sure to turn off berv correction!!) with one added line:
 
 <code> mockdatapath      datapath/to/your/fake/datafolder</code>
 
-Simple as that. But now you need to produce the simulated data. In your data folder, you want to make sure you have the order definition file, and if needed, the blaze function file. Additionally, you need the tayph config file.
+Simple as that. But now you need to produce the simulated data. In your data folder, you want to make sure you have the order definition file, and if needed, the blaze function file. Additionally, you need the tayph config file. 
 
 ```python
 import sys
@@ -157,5 +157,6 @@ run.start_run(f'W77.dat', xcor_parallel=False)
 ```
 
 
+## Eccentric orbits
 
-
+We all know this: Eccentric orbits are special. Everything above works like a charm for circular orbits, but as soon as we introduce eccentricity, it all becomes significantly more difficult. The simulation tool allows for creating mock data with eccentric orbits, but tayph is not equipped (yet) with the same functionality. So you need to turn off the Keplerian correction that corrects the orbital motion and do that outside, moving your spectra to the rest-frame of the star. This then produces your ccf (cleaning steps). From there you need to recalculate the out and in transit exposures (if that is what you do!) because tayph intrinsically assumes a circular orbit again. 
