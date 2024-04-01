@@ -84,8 +84,8 @@ template_species = [
     'Ti'
                    ]
 ```
-# this produces now the spectrum with your species and saves it. Make sure you check out the different modes. You can also add clouds and hazes following the pRT definitions. Check out their documentation.
-# For clouds, you need a clouds keyword in your config file, as well as the scattering coefficients following pRT definition. The following implementations exist:
+This now produces the spectrum with your species and saves it. Make sure you check out the different modes. You can also add clouds and hazes following the pRT definitions. Check out their documentation.
+For clouds, you need a clouds keyword in your config file, as well as the scattering coefficients following pRT definition. The following implementations exist:
 
 - clouds == 'Rayleigh': Rayleigh-like scattering
 - clouds == 'weak': power law weak (kappa_0 = 0.01, gamma = -2)
