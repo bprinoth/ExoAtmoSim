@@ -83,70 +83,18 @@ template_species = [
     'Fe',
     'Ti'
                    ]
-
+```
 # this produces now the spectrum with your species and saves it. Make sure you check out the different modes. You can also add clouds and hazes following the pRT definitions. Check out their documentation.
-# For clouds, you need a clouds keyword in your config file.
+# For clouds, you need a clouds keyword in your config file, as well as the scattering coefficients following pRT definition. The following implementations exist:
+
+- clouds == 'Rayleigh': Rayleigh-like scattering
+- clouds == 'weak': power law weak (kappa_0 = 0.01, gamma = -2)
+- clouds == 'flat': flat opacity (kappa_0 = 0.01, gamma = 0)
+- clouds == 'positive': exotic case of a positive opacity slope (kappa_0 = 0.01, gamma = 1.)
+- clouds == float: This means we want a cloud layer at a given pressure level in bar.
+- hazes == float: haze factor according to pRT
 
 ```python
-
-        if clouds is None:
-            print("[INFO] Ignoring clouds.")
-            kappa_zero = None
-            gamma_scat = None 
-            Pcloud = None
-            
-        elif clouds == 'Rayleigh':
-            print('[INFO] Assuming Rayleigh-like scattering.')
-            kappa_zero = 0.01
-            gamma_scat = -4
-            Pcloud = None
-            
-        elif clouds == 'weak': # powerlaw weak
-            print('[INFO] Assuming weak scattering.')
-            kappa_zero = 0.01
-            gamma_scat = -2.
-            Pcloud = None
-            
-        elif clouds == 'flat': # flat opacity
-            print('[INFO] Assuming a flat opacity.')
-            kappa_zero = 0.01
-            gamma_scat = 0.
-            Pcloud = None
-            
-        elif clouds == 'positive': # 1, positive
-            print('[INFO] Assuming the exotic case of a positive opacity slope.')
-            kappa_zero = 0.01
-            gamma_scat = 1. 
-            Pcloud = None
-            
-        elif type(clouds) == float: # if it is set to a bar value
-            print(f'[INFO] Assuming a cloud deck at P = {clouds} bar.')
-            kappa_zero = None
-            gamma_scat = None
-            Pcloud = clouds
-        
-        else:
-            print("[INFO] Ignoring clouds.")
-            kappa_zero = None
-            gamma_scat = None 
-            Pcloud = None
-          
-        if mode == 'transmission':  
-            if hazes is not None:
-                print(f'[INFO] Assuming hazes with a factor {hazes}.')
-                haze_factor = hazes
-            
-            else:
-                print('[INFO] Ignoring hazes.')
-                haze_factor = None
-        else:
-            print('[INFO] Ignoring hazes for emission.')
-
-```
-
-
-
-
 W77Ab.compute_spectrum(
    template_species=template_species, # including those species
    save_name='W77Ab', #saves here .fits
