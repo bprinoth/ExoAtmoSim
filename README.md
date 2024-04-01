@@ -55,7 +55,8 @@ import PlanetSpectrum # this is where all the magic happens.
 # Reading in the config file located at testing_the_module/ and initiating the Planet object with a spectrum over the wavelength range from 0.3 to 0.8 micron
  W77Ab = PlanetSpectrum.Planet(
     dp='testing_the_module/', 
-    wl_range=[0.3, 0.8], 
+    wl_range=[0.3, 0.8],
+    pressure_limits=[-9, 1] # from 10^-9 to 1 bar in log space
 )
 
 ```
