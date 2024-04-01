@@ -39,5 +39,6 @@ FastChem_input  	  /home/bibi/GitHub/FastChem/input/      # Input path for your 
 p0  				        1                                      # Pressure at the surface, bottom of the atm in bar
 tp_profile  	      guillot                                # T-p profile, can be isothermal, guillot or name.txt where the first col is T in K and second col is p in bar
 layers	  	  	    50                                     # For isothermal and guillot we need to define the number of atmospheric layers. Ignored for custom T-p profile
-T    	      	      3000                                   # temperature of the atmosphere (e.g. isothermal)
-Ti/H         	      1.81                                   # Specific atomic ratios. Supported: C/O, Ti/H, ...
+Teq    	      	    3000                                   # temperature of the atmosphere (e.g. isothermal)
+C/O         	      1.81                                   # Specific atomic ratios. Atm supported: C/O
+metallicity         0.0                                    # [Fe/H] = 0.0 is solar
