@@ -105,3 +105,10 @@ W77Ab.compute_single_species_template(
 
 
 This has now produced an emission spectrum in fp/fs (flux density contrast) assuming an underlying black body for the star. 
+
+## So how do I predict my cross-correlation signal now?
+
+Hold on a second. We first need to produce our fake data!
+This step is easily done if you have a bit of an idea how tayph works. If not, go check out the documentation. 
+
+
