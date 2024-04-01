@@ -84,11 +84,72 @@ template_species = [
     'Ti'
                    ]
 
-# this produces now the spectrum with your species and saves it. Make sure you check out the different modes. 
+# this produces now the spectrum with your species and saves it. Make sure you check out the different modes. You can also add clouds and hazes following the pRT definitions. Check out their documentation.
+# For clouds, you need a clouds keyword in your config file.
+
+```python
+
+        if clouds is None:
+            print("[INFO] Ignoring clouds.")
+            kappa_zero = None
+            gamma_scat = None 
+            Pcloud = None
+            
+        elif clouds == 'Rayleigh':
+            print('[INFO] Assuming Rayleigh-like scattering.')
+            kappa_zero = 0.01
+            gamma_scat = -4
+            Pcloud = None
+            
+        elif clouds == 'weak': # powerlaw weak
+            print('[INFO] Assuming weak scattering.')
+            kappa_zero = 0.01
+            gamma_scat = -2.
+            Pcloud = None
+            
+        elif clouds == 'flat': # flat opacity
+            print('[INFO] Assuming a flat opacity.')
+            kappa_zero = 0.01
+            gamma_scat = 0.
+            Pcloud = None
+            
+        elif clouds == 'positive': # 1, positive
+            print('[INFO] Assuming the exotic case of a positive opacity slope.')
+            kappa_zero = 0.01
+            gamma_scat = 1. 
+            Pcloud = None
+            
+        elif type(clouds) == float: # if it is set to a bar value
+            print(f'[INFO] Assuming a cloud deck at P = {clouds} bar.')
+            kappa_zero = None
+            gamma_scat = None
+            Pcloud = clouds
+        
+        else:
+            print("[INFO] Ignoring clouds.")
+            kappa_zero = None
+            gamma_scat = None 
+            Pcloud = None
+          
+        if mode == 'transmission':  
+            if hazes is not None:
+                print(f'[INFO] Assuming hazes with a factor {hazes}.')
+                haze_factor = hazes
+            
+            else:
+                print('[INFO] Ignoring hazes.')
+                haze_factor = None
+        else:
+            print('[INFO] Ignoring hazes for emission.')
+
+```
+
+
+
 
 W77Ab.compute_spectrum(
    template_species=template_species, # including those species
-   save_name='imaginary', #saves here .fits
+   save_name='W77Ab', #saves here .fits
    mode='emission_no_scat' # could also be emission_scat, transmission
 )
 ```
@@ -108,7 +169,45 @@ This has now produced an emission spectrum in fp/fs (flux density contrast) assu
 
 ## So how do I predict my cross-correlation signal now?
 
-Hold on a second. We first need to produce our fake data!
-This step is easily done if you have a bit of an idea how tayph works. If not, go check out the documentation. 
+Hold on a second. We first need to produce our simulated data!
+This step is easily done if you have a bit of an idea how tayph works. If not, go check out the documentation. You'll need a standard tayph runfile (for us 'W77.dat') with one added line:
+
+<code> mockdatapath      datapath/to/your/fake/datafolder</code>
+
+Simple as that. But now you need to produce the simulated data. In your data folder, you want to make sure you have the order definition file, and if needed, the blaze function file. Additionally, you need the tayph config file.
+
+```python
+import sys
+sys.path.insert(0, '/home/bibi/GitHub/tayph/') 
+import tayph.mock as mock
+import tayph.run as run
+
+savename = 'W77Ab' # this is the savename you had for your fits file.
+mock_dp = f'data/WASP-77Ab/' # this is the datapath to your fake data
+
+```
+
+To bring the spectra into the right format, you need:
+
+```python
+mock.translate_phi_spectra(f'{savename}.fits', mock_dp, savename, phi0=0.35)
+```
+
+This assigns this spectrum to phase phi0=0.35. This is important if you e.g. use emission spectroscopy and want to centre around phi0. 
+For transmission spectra, this becomes phi0 = 0.0
+
+The mock observations are then generated through:
+
+```python
+mock.create_mock_obs(f'W77.dat', create_obs_file=True, mode='ESPRESSO', real_data=False, spec='flux', rot=True)
+```
+
+For the cross-correlation you can then use, see tayph for full documentation: 
+
+```python
+run.start_run(f'W77.dat', xcor_parallel=False)
+```
+
+
 
 
