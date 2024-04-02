@@ -150,7 +150,7 @@ The mock observations are then generated through:
 mock.create_mock_obs(f'W77.dat', create_obs_file=True, mode='ESPRESSO', real_data=False, spec='flux', rot=True)
 ```
 
-For the cross-correlation you can then use, see tayph for full documentation: 
+For the cross-correlation you can then use, see tayph for full documentation. You can of course use these orders also for your own cc code. No need to use tayph for it. Be aware though that the mock tool is part of tayph.
 
 ```python
 run.start_run(f'W77.dat', xcor_parallel=False)
