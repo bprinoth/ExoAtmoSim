@@ -1,1 +1,31 @@
+datapath                  data/WASP-77Ab/mock/
+mockdatapath              data/WASP-77Ab/mock/ # This path and the mock data below are the only additional lines needed in this tayph .dat file to produce the simlulated data based on the W77Ab.fits emission spectrum.
+mockdata                  W77Ab.fits
+
+
+template_library          models/library   
+model_library             models/library   
+model                     #
+template                  Fe,TiO
+c_subtract                True   
+do_telluric_correction    False            # always False for simulated observations
+do_colour_correction      True
+do_xcor                   True  
+inject_model              False
+plot_xcor                 True
+make_mask                 False
+apply_mask                False
+do_berv_correction        False
+do_keplerian_correction   True
+transit                   False
+
+make_doppler_model        False    
+skip_doppler_model        True   # Ignore because emission. Turn on for transmission.
+
+RVrange                   1000.0  # range for ccf : -1000 to 1000 km/s
+drv                       1.0     # step 1 km/s  
+f_w                       70.     # high-pass filter  
+
+shadowname                shadow_FeI_binary     # if we had a Doppler shadow correction, this is where we'd safe it.
+maskname                  generic_mask    
 
