@@ -1,16 +1,17 @@
 import sys
+import os
+
 sys.path.insert(0,'/home/bibi/GitHub/petitRADTRANS/')
 sys.path.insert(0, '/home/bibi/.local/lib/python3.8/site-packages/lib/python3.8/site-packages/pyfastchem-3.0-py3.8-linux-x86_64.egg/')
-import os
+
 os.environ['pRT_input_data_path'] = '/usr/local/src/petitRADTRANS/petitRADTRANS/input_data/'
-#os.environ['pRT_input_data_path'] = '/data/bibi/input_data/'
 os.environ["OMP_NUM_THREADS"] = "1"
 
+#sys.path.insert(0, '/home/bibi/GitHub/ExoSim/')
 
-sys.path.insert(0, '/home/bibi/GitHub/ExoSim/')
 import PlanetSpectrum
-import utilities as ut
 
+## PLOTTING
 import matplotlib.pyplot as plt
 #plt.rcParams.update({'font.size': 16})
 plt.rc('font', size=18)          # controls default text sizes
@@ -50,16 +51,9 @@ template_species = [
     'Ti'
                    ]
 
-# W77Ab.compute_spectrum(
-#    template_species=template_species, 
-#    save_name='W77Ab-billy',
-#    mode='emission_no_scat'
-# )
-
-
 W77Ab.compute_spectrum(
    template_species=template_species, 
-   save_name='imaginary',
+   save_name='W77Ab',
    mode='emission_no_scat'
 )
 
@@ -72,12 +66,6 @@ W77Ab.compute_spectrum(
 
 # W77Ab.compute_single_species_template(
 #     template_species=['Fe'], 
-#     save_name='Fe_template',
-#     mode='emission_no_scat'
-# )
-
-# W77Ab.compute_single_species_template(
-#     template_species=[''], 
 #     save_name='Fe_template',
 #     mode='emission_no_scat'
 # )
