@@ -8,13 +8,15 @@ ExoSim provides a short simulation package to simulate the detection of atmosphe
 
 The requirement is that each of these packages is already successfully installed on your machine, together with your opacities for petitRADTRANS. We refer you to the corresponding installation manuals.
 
-## Supported instruments (as of February 2024)
+## Supported instruments (as of April 2024)
 
 - ESPRESSO: with constant SNR
 - SPIRou: with constant SNR
 - ANDES: with wavelength-dependent SNR, see ANDES generator
 - HARPS: with constant SNR
 - HARPS-N: with constant SNR, see HARPS
+
+- in prep: CRIRES+ (hint, you can already do it via the ANDES pipeline by only selecting the band you want ;))
 
 
 ## Additional files
