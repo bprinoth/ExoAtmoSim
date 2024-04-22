@@ -11,6 +11,7 @@ import petitRADTRANS as pRT
 #from petitRADTRANS.radtrans import Radtrans
 from petitRADTRANS import nat_cst as nc
 from petitRADTRANS.physics import guillot_global
+from utilities import paramget, BB
 
 ### THE BIG DICTIONARY
 
@@ -23,7 +24,7 @@ species_dictionary = { # from FastChem notation to pRT notation
     "B": "B",
     "H1Fe1": "FeH_main_iso",
     "Be": "Be",
-    "CO": "CO_main_iso",
+    "C1O1": "CO_main_iso",
     "Fe1+": "FeII",
     "H1C1N1_1": "HCN_main_iso",
     "O": "O", 
@@ -45,120 +46,53 @@ species_dictionary = { # from FastChem notation to pRT notation
     "H3P1": "PH3_main_iso",
     "Ca1+": "CaII",
     "Mg1+": "MgII",
-    "H2O1": " H2O_main_iso",
+    "H2O1": "H2O_main_iso",
     "Si": "Si",
     "Cr": "Cr",
     "N": "N",  
     "O1Si1": "SiO_main_iso"
 }
 
+network_dictionary = {
+    'O2': 'O2',
+    'NH3': "H3N1",
+    'HCN':"H1C1N1_1",
+    'CH4':"H4C1",
+    'CO':"C1O1",
+    'H2O':"H2O1",
+    'CO2':"C1O2"
+} 
 
 
+# Molecular formulas in the network
+molecular_formulas = ['CH3COOOH', 'C4H9O', 'C3H7O', 'NO3', 'CH3COOO', 'C2H5OO', 'C2H4OOH', 'HONO2',
+ 'C2H5OOH', 'CH3ONO', 'C3H8CO', 'CH3NO2', '1C4H9', '2C4H9', 'C4H10', 'C3H7OH',
+ 'CH3OO', 'C4H8Y', 'CH3OOH', 'HNO2', 'CH3OCO', 'C2H5CHO', 'C2H6CO', 'C2H5O',
+ 'CH3NO', '2C2H4OH', 'NO2', '2C3H7', '1C3H7', '1C2H4OH', 'HONO', 'C3H8', 'HCNN',
+ 'cC2H4O', 'HCNO', 'C2H5OH', 'N2O', 'C2H3CHOZ', 'OOH', 'CH2CHO', 'H2O2', 'CH3CO',
+ 'NCO', 'CH3O', 'O2', 'CH3CHO', 'HNO', 'C', 'CHCO', 'CO2H', 'HOCN', 'C2H5', 'C2H',
+ 'CH2OH', 'CH', 'C2H6', 'C2H3', 'CH2CO', 'NNH', 'H2CN', 'CH3OH', 'N4S', 'N2D', 'CN',
+ '1CH2', 'HNCO', 'NO', 'O3P', 'O1D', 'C2H4', 'NH', '3CH2', 'HCO', 'C2H2', 'H2CO',
+ 'NH2', 'CO2', 'OH', 'CH3', 'HCN', 'NH3', 'CH4', 'N2', 'CO', 'H2O', 'H', 'He', 'H2',
+ 'N2O4', 'N2O3', 'N2H2', 'N2H3', 'N2H4', 'HNNO', 'HNOH', 'HNO3', 'NH2OH', 'H2NO',
+ 'CNN', 'H2CNO', 'C2N2', 'HCNH', 'HON', 'NCN', 'HCOH', 'HOCHO', 'HOCH2O']
 
+# Molecular weights belonging to the network
+molecular_weights = [75.044, 73.113, 59.080, 62.004, 73.052, 59.068, 60.052, 63.012,
+ 60.052, 61.037, 74.123, 61.042, 57.084, 57.084, 58.123, 61.084, 47.040, 56.106,
+ 48.041, 47.013, 59.044, 58.079, 59.072, 45.066, 45.041, 61.083, 46.005, 43.064,
+ 43.064, 45.067, 47.013, 44.097, 27.026, 44.053, 27.010, 46.069, 44.013, 55.041,
+ 33.006, 42.037, 34.014, 43.030, 42.018, 31.019, 31.999, 44.053, 29.992, 12.011,
+ 41.028, 45.018, 43.018, 29.055, 24.021, 31.033, 13.019, 30.070, 25.029, 42.037,
+ 30.021, 27.018, 32.042, 92.094, 30.008, 26.018, 15.023, 43.025, 30.006, 79.977,
+ 31.997, 28.054, 15.015, 15.034, 29.018, 26.038, 30.026, 16.018, 44.010, 17.007,
+ 15.035, 27.026, 17.031, 16.043, 28.013, 28.010, 18.015, 1.008, 4.003, 2.016,
+ 92.011, 76.011, 30.028, 31.021, 32.028, 61.022, 33.018, 63.019, 33.033, 33.018,
+ 27.022, 41.018, 52.025, 27.022, 17.008, 42.024, 29.029, 45.032, 46.040]
 
-
-
-
-
-
-
-
-
-######### HELPER FUNCTIONS - DEFINED OUTSIDE
-# # paramget allows you to get parameters from a config file instead of typing all the stuff into a list
-
-def paramget(keyword,dp,full_path=False,force_string = False):
-    """This code queries a planet system parameter from a config file located in the folder
-    specified by the path dp; or run configuration parameters from a file speciefied by the full
-    path dp, if full_path is set to True. It is taken from tayph @Hoeijmakers
-
-    Parameters
-    ----------
-    keyword : str
-        A keyword present in the cofig file.
-
-    dp : str, Path
-        Output filename/path.
-
-    full_path: bool
-        If set, dp refers to the actual file, not the location of a folder with a config.dat;
-        but the actual file itself.
-
-    Returns
-    -------
-    value : int, float, bool, str
-        The value corresponding to the requested keyword.
-
-    """
-    import pathlib
-    import distutils.util
-    import pdb
-
-
-    #This is probably the only case where I don't need obs_times and config to exist together...
-    #dp=check_path(dp)
-    #typetest(keyword,str,'keyword in paramget()')
-
-    if isinstance(dp,str) == True:
-        dp=pathlib.Path(dp)
-    try:
-        if full_path == False:
-            dp = dp/'config'
-        f = open(dp, 'r')
-    except FileNotFoundError:
-        raise FileNotFoundError('Parameter file does not exist at %s' % str(dp)) from None
-    
-    x = f.read().splitlines()
-    f.close()
-    n_lines=len(x)
-    keywords={}
-    
-    for i in range(0,n_lines):
-        line=x[i].split()
-        if len(line) > 1:
-            if force_string:
-                value=(line[1])
-            else:
-                try:
-                    value=float(line[1])
-                except ValueError:
-                    try:
-                        value=bool(distutils.util.strtobool(line[1]))
-                    except ValueError:
-                        value=(line[1])
-            keywords[line[0]] = value
-    try:
-        return(keywords[keyword])
-    
-    except KeyError:
-        # print(keywords)
-        raise Exception('Keyword %s is not present in parameter file at %s' % (keyword,dp)) from None
-
-def BB(temperature): # BB function from frei @ Brett Morris.
-    import numpy as np
-    
-    """
-    Compute the blackbody flux
-
-    Parameters
-    ----------
-    temperature : ~astropy.units.Quantity
-        Temperature of the blackbody
-
-    Returns
-    -------
-    bb : function
-        Returns a function which takes the wavelength as an
-        `~astropy.units.Quantity` and returns the Planck flux
-    """
-    # h = 6.62607015e-34  # J s
-    # c = 299792458.0  # m/s
-    # k_B = 1.380649e-23  # J/K
-    return lambda wavelength: (
-            2 * const.h * const.c ** 2 / np.power(wavelength, 5) /
-            np.expm1(const.h * const.c / (wavelength * const.k_B * temperature))
-    )
-    
+# Create dictionary
+molecular_weights_dict = dict(zip(molecular_formulas, molecular_weights))
+inv_network_dictionary  = {v: k for k, v in network_dictionary.items()}
 
 class Planet:
 
@@ -171,7 +105,7 @@ class Planet:
         
         
         try:
-            self.gp = 10**paramget('logp', self.dp) # logp in cgs units
+            self.gp = 10**paramget('loggp', self.dp) # logp in cgs units
         except:
             self.Mp = paramget('Mp', self.dp) # Mp in Mjup
             self.gp = (const.G * self.Mp * u.Mjup / (self.Rs * u.Rjup)**2).to('cm/s2').value # computes the surface gravity from the mass instead
@@ -207,12 +141,24 @@ class Planet:
                 try: self.T_int = paramget('T_int', self.dp)
                 except: self.T_int = 200 
                 
-                self.temp = paramget('T', self.dp) # eq. temperature in Kelvin
+                self.temp = paramget('Teq', self.dp) # eq. temperature in Kelvin
+                self.layers = int(paramget('layers', self.dp))
+            
+            elif self.tp_profile == 'network':
+                self.temperature = None
+                self.pressure = None    
                 
             
+        self.chemistry = paramget('chemistry', self.dp)
+        
+        if self.chemistry == 'FastChem':
+            self.FastChem_input_path = paramget('FastChem_input', self.dp)
             
+        elif self.chemistry == 'network':
+            print('[INFO] Loading chemistry from network.')
+            self.file_path_network = paramget('network_path', self.dp)
             
-        self.FastChem_input_path = paramget('FastChem_input', self.dp)
+        
         self.p0 = paramget('p0', self.dp) # reads ref pressure in bar
         
         # some other optional inputs:
@@ -229,9 +175,17 @@ class Planet:
             self.C_O = paramget('C/O', self.dp)
         except: 
             self.C_O = 'solar'
-        
-        # clouds?
-        #
+            
+        try: 
+            self.Ti_H = paramget('Ti/H', self.dp)
+        except: 
+            self.Ti_H = 'solar'
+        # # clouds?
+        # try:
+        #     self.clouds = paramget('clouds', self.dp)
+            
+        # except:
+        #     self.clouds = None
         
             
     def compute_chemistry(self):
@@ -247,7 +201,7 @@ class Planet:
             print(f"[INFO] kappa_IR = {self.kappa_IR}, gamma = {self.gamma}, T (int) = {self.T_int} K, T (eq) = {self.temp} K")
             
             self.pressure = np.logspace(-9, 1, num=self.layers)     
-            self.temperature = guillot_global(self.pressure, self.kappa_IR, self.gamma, self.gp, self.T_int, self.T_equ)     
+            self.temperature = guillot_global(self.pressure, self.kappa_IR, self.gamma, self.gp, self.T_int, self.temp)     
             
         else:  
             try:
@@ -308,9 +262,9 @@ class Planet:
         
         if self.metallicity != 0.0:
             print(f"[INFO] Metallicity is {self.metallicity}. Scaling your abundances.")
-            self.abundances = np.array(fastchem.getElementAbundances())
+            self.abundances = np.array(self.fastchem.getElementAbundances())
             
-            for j in range(0, fastchem.getElementNumber()):
+            for j in range(0, self.fastchem.getElementNumber()):
                 if self.fastchem.getElementSymbol(j) != 'H' and self.fastchem.getElementSymbol(j) != 'He':
                     self.abundances[j] *= self.metallicity # all except He and H are scaled by the metallicity. 
         
@@ -328,6 +282,12 @@ class Planet:
         
             self.abundances[index_C] = self.abundances[index_O] * self.C_O 
             
+        if self.Ti_H != 'solar':
+            print(f'[INFO] Changing your Ti_H ratio to {self.Ti_H}')
+            index_Ti = self.fastchem.getGasSpeciesIndex('Ti')
+            index_H = self.fastchem.getGasSpeciesIndex('H')
+        
+            self.abundances[index_Ti] = self.abundances[index_H] * self.Ti_H 
             
         print("[INFO] Running FastChem")
         fastchem_flag = self.fastchem.calcDensities(input_data, output_data)
@@ -358,52 +318,130 @@ class Planet:
         self.mean_molecular_weight = np.array(output_data.mean_molecular_weight)
         
         return 0
-        
+    
+    def extract_molecular_weights(self):
+        self.molecular_weights_dict = molecular_weights_dict 
    
+    def load_network(self):
+        
+        # Read the dataformat
+        comment_rows = 0
+        with open(self.file_path_network, 'r') as file:
+            for line in file:
+                if line.startswith('!'):
+                    comment_rows += 1
+                else:
+                    break  # Exit the loop as soon as non-comment lines are encountered
+
+        print("Number of comment rows:", comment_rows)
+
+        # reading it once to get the comment 
+        data = pd.read_csv(self.file_path_network, delim_whitespace=True, skiprows=comment_rows-1, header=None)
+        # Assign the first row as the column headers
+        header = data.iloc[0][1::]
+
+        data = pd.read_csv(self.file_path_network, delim_whitespace=True, comment='!', header=None)
+        data.columns = header
+        
+        # we need to flip the axis!!!
+        self.temperature = np.asarray(data['temperature[K]'])[::-1]
+        self.pressure = np.asarray(data['pressure[bar]'])[::-1]
+        self.mean_molecular_weight = (10**np.asarray(data['MMW[g]']) * u.g).to('u').value # translation from grams to atomic u.
+        
+        self.network_data = data
+     
+    # def plot_abundances(self):
+    #     if self.chemistry == 'network':
+            
+    
+     
+        
     def compute_single_species_template(self, template_species, save_name, mode='transmission', clouds=None, hazes=None): 
         
         if len(template_species) == 1:
             print(f'[INFO] Computing single {mode} species template for {template_species[0]}.')
             #print(f'[INFO] ')
-            self.compute_spectrum(template_species, save_name, mode='transmission', clouds=None, hazes=None, template=True)
+            self.compute_spectrum(template_species, save_name, mode=mode, clouds=clouds, hazes=hazes, template=True)
             
         else: 
             print(f'[INFO] You should only have one template species for your template. Otherwise consider using the self.compute_spectrum function to produce a spectrum.')
     
+    #def compute_continuum(self, savename, mode='transmission', clouds=None, template=False):
+        
         
     def compute_spectrum(self, template_species, save_name, mode='transmission', clouds=None, hazes=None, template=False): 
         # can be transmission or emission, if Pcloud is None, we ignore it, otherwise we set the cloud at that pressure.
-        
+        template_components = ['H2', 'He'] + template_species
 
         try:
-            index = self.fastchem.getSpeciesIndex(template_species[0])
+            if self.chemistry == 'FastChem':
+                index = self.fastchem.getGasSpeciesIndex(template_species[0])
+                template_components = ['H2', 'He'] + template_species
+                template_species_pRT_notation = [species_dictionary[template_species[i]] for i in range(len(template_species))]
+                #template_components_pRT_notation = ['H2', 'He'] + template_species_pRT_notation
+       
+            elif self.chemistry == 'network':
+                size = np.shape(self.network_data)
+                # first to FastChem notation
+                
+                template_components_network_notation = ['H2', 'He'] + [inv_network_dictionary[template_species[i]] for i in range(len(template_species))] 
+                
+                # this translates all the components to the pRT notation, so we can use them in the 
+                template_species_pRT_notation = [species_dictionary[template_species[i]] for i in range(len(template_species))]
+                
+                # all the template components
+                template_components = ['H2', 'He'] + template_species
         
         except:
-            print("[WARNING] I cannot find your chemistry. Computing chemistry from scratch.")
-            self.compute_chemistry()
-            index = self.fastchem.getSpeciesIndex(template_species[0])
+            print(f"[WARNING] I cannot find your chemistry. Building with {self.chemistry} from scratch.")
             
-        
-        template_components = ['H2', 'He'] + template_species
-        template_species_pRT_notation = [species_dictionary[template_species[i]] for i in range(len(template_species))]
-        template_components_pRT_notation = ['H2', 'He'] + template_species_pRT_notation
+            if self.chemistry == 'FastChem':
+                self.compute_chemistry()
+                index = self.fastchem.getGasSpeciesIndex(template_species[0])
+                template_species_pRT_notation = [species_dictionary[template_species[i]] for i in range(len(template_species))]
+                #template_components_pRT_notation = ['H2', 'He'] + template_species_pRT_notation
+
+            elif self.chemistry == 'network':
+                self.load_network()
+                # this translates all the components to the network notation, so we can access the file
+                template_components_network_notation = ['H2', 'He'] + [inv_network_dictionary[template_species[i]] for i in range(len(template_species))] 
+                
+                # this translates all the components to the pRT notation, so we can use them in the 
+                template_species_pRT_notation = [species_dictionary[template_species[i]] for i in range(len(template_species))]
+                
+                # all the template components
+                template_components = ['H2', 'He'] + template_species
+                
+            else:
+                print(f"[ERROR] Something is terribly wrong. Chemistry is set to {self.chemistry}, but I only know FastChem or network." )
+                return -1
         
         self.mass_fractions = np.zeros((len(template_components), len(self.pressure)))
         self.indices = []
         
-        print(f"[INFO] Computing mass fractions for {template_components}")
-        for i, species in enumerate(template_components):
+        print(f"[INFO] Computing mass fractions for {template_components} with {self.chemistry} chemistry.")
+        if self.chemistry == 'FastChem':
             
-            index = self.fastchem.getSpeciesIndex(species)
-            self.indices.append(index)
+            for i, species in enumerate(template_components):
+                
+                index = self.fastchem.getGasSpeciesIndex(species)
+                self.indices.append(index)
+                
+                VMR = self.number_densities[:, self.indices[i]]/self.gas_number_density
+                
+                molecular_weight = self.fastchem.getGasSpeciesWeight(index)
+                
+                self.mass_fractions[i] = (VMR * molecular_weight / self.mean_molecular_weight)
+                
+        elif self.chemistry == 'network':
             
-            VMR = self.number_densities[:, self.indices[i]]/self.gas_number_density
-            
-            molecular_weight = self.fastchem.getSpeciesMolecularWeight(index)
-            
-            self.mass_fractions[i] = (VMR * molecular_weight / self.mean_molecular_weight)
+            for i, species in enumerate(template_components):
+                
+                
+                self.mass_fractions[i] = 10**np.asarray(self.network_data[f'{template_components_network_notation[i]}']) * molecular_weights_dict[f'{template_components_network_notation[i]}'] / self.mean_molecular_weight  #np.asarray(10**data)[:, 4::] * molecular_weights).T  / mean_molecular_weight
         
-        
+        #import pdb
+        #pdb.set_trace()
         print(f'[INFO] Setting up radiative transfer object with pRT')
         print(f'[INFO] ----- Wavelength coverage from {self.wl_range[0]} to {self.wl_range[-1]} micron')
         print(f'[INFO] ----- Assuming the following parameters:')
@@ -436,7 +474,7 @@ class Planet:
             gamma_scat = 0.
             Pcloud = None
             
-        elif clouds == 'positiv': # 1, positive
+        elif clouds == 'positive': # 1, positive
             print('[INFO] Assuming the exotic case of a positiv opacity slope.')
             kappa_zero = 0.01
             gamma_scat = 1. 
@@ -465,13 +503,13 @@ class Planet:
         else:
             print('[INFO] Ignoring hazes for emission.')
             
-            
+        template_components_pRT = ['H2', 'He'] +  template_species_pRT_notation
         mass_fractions_dict = {}
             
         for i in range(len(self.mass_fractions)):
-            mass_fractions_dict[template_components[i]] = self.mass_fractions[i]
+            mass_fractions_dict[template_components_pRT[i]] = self.mass_fractions[i]
             MMW = self.mean_molecular_weight
-                
+        #pdb.set_trace()        
         
         if mode == 'transmission':
             
@@ -514,7 +552,7 @@ class Planet:
                         rayleigh_species = ['H2', 'He'],
                         continuum_opacities = ['H2-H2', 'H2-He'],
                         wlen_bords_micron = self.wl_range, mode='lbl',
-                        do_scat_emis = False
+                        #do_scat_emis = False
                         )
         
             atmosphere.setup_opa_structure(self.pressure)
@@ -530,28 +568,40 @@ class Planet:
             self.flux = atmosphere.flux 
             
             if template==False:
-                print(f'[INFO] Saving emission spectrum to output/{save_name}.fits')
-                print(f'[INFO] The spectrum is in nm, and vacuum, in planetary flux [erg / cm2 / s / Hz].')
+                print(f'[INFO] Saving emission spectrum to {save_name}.fits')
+                print(f'[INFO] The spectrum is in nm, and vacuum, in fp/fs (flux density contrast).')
                 
-                fits.writeto(save_name+'.fits', np.vstack((self.wl_nm.value, self.flux)), overwrite=True)
+                self.Teff = paramget('Teff', self.dp)
+                print(f"[INFO] Assuming a blackbody for the star at T_eff = {self.Teff} K.")
+                
+                # Unit conversion from hell
+                prt_unit = u.Unit(u.erg/u.cm**2/u.s/u.Hz)
+                target_unit = u.Unit(u.erg / u.cm**3/u.s)
+                
+                self.flux_frei = (self.flux * prt_unit).to(target_unit, u.spectral_density(self.wl_nm))
+                
+                Fs = BB(self.Teff * u.K)(self.wl_nm)
+                self.FpFs = (self.flux_frei / Fs).decompose().value
+                
+                fits.writeto(save_name+'.fits', np.vstack((self.wl_nm.value, self.FpFs)), overwrite=True)
                 
             else:
-                print(f'[INFO] Saving emission template to output/{save_name}.fits')
+                print(f'[INFO] Saving emission template to {save_name}.fits')
                 print(f'[INFO] The spectrum is in nm, and vacuum, in Fp/Fs (flux contrast).')
                 
                 self.Teff = paramget('Teff', self.dp)
                 print(f"[INFO] Assuming a blackbody for the star at T_eff = {self.Teff} K.")
                 
                 # Unit conversion from hell
-                prt_unit = u.Unit('erg/cm2/s/Hz')
-                target_unit = u.Unit('erg/cm3/s')
+                prt_unit = u.Unit(u.erg/u.cm**2/u.s/u.Hz)
+                target_unit = u.Unit(u.erg / u.cm**3/u.s)
                 
                 self.flux_frei = (self.flux * prt_unit).to(target_unit, u.spectral_density(self.wl_nm))
                 
                 Fs = BB(self.Teff * u.K)(self.wl_nm)
-                self.FpFs = (self.flux_frei * (self.Rp * u.Rjup)** 2 / (Fs * (self.Rs * u.Rsun)**2)).decompose()
+                self.FpFs = (self.flux_frei * (self.Rp * u.Rjup)** 2 / (Fs * (self.Rs * u.Rsun)**2)).decompose().value
                 
-                fits.writeto(save_name+'.fits', np.vstack((self.wl_nm.value, self.FpFs)), overwrite=True)
+                fits.writeto(save_name+'.fits', np.vstack((self.wl_nm.value, 1.+self.FpFs)), overwrite=True)
                 
             
         elif mode == 'emission_scat':
@@ -569,8 +619,8 @@ class Planet:
             gravity = self.gp
             P0 = self.p0
             
-            self.wl_nm = (nc.c/atmosphere.freq/1e-4 * u.micron).to(u.nm)
-            self.flux = atmosphere.flux
+            #self.wl_nm = (nc.c/atmosphere.freq/1e-4 * u.micron).to(u.nm)
+            #self.flux = atmosphere.flux
             
             print('[INFO] Calculating emission spectrum with scattering in planetary flux units')
             atmosphere.calc_flux(self.temperature, mass_fractions_dict, gravity, MMW, kappa_zero = kappa_zero, gamma_scat = gamma_scat, Pcloud=Pcloud)
@@ -581,9 +631,21 @@ class Planet:
             
             if template==False:
                 print(f'[INFO] Saving emission spectrum to output/{save_name}.fits')
-                print(f'[INFO] The spectrum is in nm, and vacuum, in planetary flux [erg / cm2 / s / Hz].')
+                print(f'[INFO] The spectrum is in nm, and vacuum, in fp/fs (flux density contrast).')
                 
-                fits.writeto(save_name+'.fits', np.vstack((self.wl_nm.value, self.flux)), overwrite=True)
+                self.Teff = paramget('Teff', self.dp)
+                print(f"[INFO] Assuming a blackbody for the star at T_eff = {self.Teff} K.")
+                
+                # Unit conversion from hell
+                prt_unit = u.Unit(u.erg/u.cm**2/u.s/u.Hz)
+                target_unit = u.Unit(u.erg / u.cm**3/u.s)
+                
+                self.flux_frei = (self.flux * prt_unit).to(target_unit, u.spectral_density(self.wl_nm))
+                
+                Fs = BB(self.Teff * u.K)(self.wl_nm)
+                self.FpFs = (self.flux_frei / Fs).decompose().value
+                
+                fits.writeto(save_name+'.fits', np.vstack((self.wl_nm.value, self.FpFs)), overwrite=True)
                 
             else:
                 print(f'[INFO] Saving emission template to output/{save_name}.fits')
@@ -601,4 +663,4 @@ class Planet:
                 Fs = BB(self.Teff * u.K)(self.wl_nm)
                 self.FpFs = (self.flux_frei * (self.Rp * u.Rjup)** 2 / (Fs * (self.Rs * u.Rsun)**2)).decompose()
                 
-                fits.writeto(save_name+'.fits', np.vstack((self.wl_nm.value, self.FpFs)), overwrite=True)
+                fits.writeto(save_name+'.fits', np.vstack((self.wl_nm.value, 1.+self.FpFs)), overwrite=True)
