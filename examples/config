@@ -1,0 +1,44 @@
+###### STAR, PLANET, ORBIT
+P					          1.3600309                              # in days
+a					          0.024                                  # in AU
+Rp					        1.21                                   # Rjup
+aRstar				      5.4   
+Mp					        1.7                                    # Mjup
+RA					        02:28:37.0  
+DEC     			      -07:03:38
+Rs					        0.910                                  # Rsun
+RpRstar				      0.1302     
+K					          0.3219                                 # in km/s               
+vsys    			      0.0                                    # in km/s
+loggp    			      3.441                                  # in cgs
+Teff    			      5500                                   # eff. temperature of the host star, in K
+logg    			      4.5                                    # log g of host, in cgs
+Tc      			      2455870.44977                          # in BJD
+inclination		      89.4                                   # in degrees
+vsini				        4.0                                    # in km/s
+ecc                 0.0                                    # yes, we can do elliptical orbits to a certain extent. --> README
+omega               90.0                                   # argument of periastron in deg, omega=90 for ecc=0.0
+
+###### OBSERVATORY, SPECTROGRAPH & OBSERVATION SPECIFICS
+long    			      -70.4039                               # long of the observatory (here Paranal)
+lat     			      -24.6272                               # lat of the observatory (here Paranal)
+elev    			      2635.0                                 # elevation of the observatory (here Paranal)
+
+air					        True
+resolution		      140000
+SNR     			      300                                    # constant SNR for e.g. ESPRESSO, HARPS, etc. ANDES will ignore this.
+exp_time			      500                                    # exposure time. SNR and exp time go hand in hand. Check the corresponding ETCs.
+T14       		      5                                      # observation time in h
+readout				      68                                     # read out time in seconds, here defaults to ESPRESSO 2x1 binning readout
+
+###### ATMOSPHERE
+
+chemistry           FastChem                               # We are working on an implementation for kinetic networks. Stay tuned.
+condensation	      False                                  # condensation prescription for FastChem Cond. False, equilibrium or rainout
+FastChem_input  	  /home/bibi/GitHub/FastChem/input/      # Input path for your FastChem Cond installation.
+p0  				        1                                      # Pressure at the surface, bottom of the atm in bar
+tp_profile  	      guillot                                # T-p profile, can be isothermal, guillot or name.txt where the first col is T in K and second col is p in bar
+layers	  	  	    50                                     # For isothermal and guillot we need to define the number of atmospheric layers. Ignored for custom T-p profile
+Teq    	      	    3000                                   # temperature of the atmosphere (e.g. isothermal)
+C/O         	      1.81                                   # Specific atomic ratios. Atm supported: C/O
+metallicity         0.0                                    # [Fe/H] = 0.0 is solar
