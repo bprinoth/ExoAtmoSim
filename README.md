@@ -1,4 +1,4 @@
-# ExoSim
+# ExoAtmoSim
 THIS IS WORK IN PROGRESS. USE AT YOUR OWN RISK ;) 
 
 Proposals to observe exoplanet atmospheres often require the presence of some model observations to show that the expected atmospheric features can indeed be detected using the cross-correlation technique. 
