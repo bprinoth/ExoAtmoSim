@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "exoatmosim"
+version = "0.9.19.dev0"
+description = "Modular exoplanet high-resolution spectroscopy predictions"
+requires-python = ">=3.10"
+dependencies = ["numpy>=1.24", "chemformula>=1.4"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[project.optional-dependencies]
+nasa = ["astroquery", "astropy", "numpy"]
+plots = ["matplotlib>=3.6"]
+orbits = ["astropy", "radvel", "PyAstronomy", "matplotlib>=3.6"]
+
+[tool.setuptools.package-data]
+"exoatmosim.resources.instruments" = ["*.npy"]
+
+# TelFit is an optional external tool used by tayph.mock when tellurics=True.

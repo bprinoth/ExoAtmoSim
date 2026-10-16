@@ -1,0 +1,19 @@
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+build/
+dist/
+
+# Local environments and model outputs
+.env
+.venv/
+data/
+diagnostics/
+*.fits
+*.fits.gz
+
+# Temporary ETC products
+viola_stellar/
