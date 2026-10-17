@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+build/
+dist/
+*.log
+*.fits
+*.fits.gz
+data/
+diagnostics/
+POSEIDON_output/
+.env
+.venv/
+
+# Machine-specific scientific backend locations
+/config/site_paths.conf

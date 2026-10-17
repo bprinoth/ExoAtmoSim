@@ -1,0 +1,1 @@
+"""Bundled ExoAtmoSim data resources."""
