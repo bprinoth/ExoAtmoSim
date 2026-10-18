@@ -25,7 +25,7 @@ class KalteneggerIntegrationTests(unittest.TestCase):
                 (root/'PT_profiles'/f'AltPT_Sun_{age}Ga.txt').write_text('x')
                 (root/'chem_profiles'/f'Chem_Sun_{age}Ga.txt').write_text('x')
             for stellar_age, wanted in ((4.6,'0.0'),(3.8,'0.8'),(2.6,'2.0'),(.7,'3.9')):
-                cfg = Config({'stellar_type':'G2V','Gyr_age':str(stellar_age)})
+                cfg = Config.from_text(f'stellar_type G2V\nGyr_age {stellar_age}\n')
                 pt, chem = select_legacy_profiles(cfg,root)
                 self.assertEqual(pt.name,f'AltPT_Sun_{wanted}Ga.txt')
                 self.assertEqual(cfg['stellar_type'],'G2V')
