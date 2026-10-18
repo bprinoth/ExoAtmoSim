@@ -173,7 +173,11 @@ _SITE_KEYS = frozenset({
     'fastchem_elements_file', 'fastchem_species_file', 'fastchem_condensates_file',
     'poseidon_path', 'poseidon_input_data', 'pysyn_cdbs',
     'instrument_order_file', 'instrument_library_path',
+    'kaltenegger_profiles_dir',
 })
+
+# Installation paths that must remain in site_paths.conf, not a planet config.
+_SITE_LOCAL_ONLY_KEYS = frozenset({'kaltenegger_profiles_dir'})
 
 
 def load_site_config(path: str | Path) -> dict[str, str]:
@@ -221,6 +225,8 @@ def format_science_config(params: dict[str, Any], *,
             raise ValueError('Unknown site-config keys: ' + ', '.join(sorted(unknown)))
         lines.append('# --- Local backend and database paths (from site config) ---')
         for key, value in site_values.items():
+            if key in _SITE_LOCAL_ONLY_KEYS:
+                continue
             if key not in params:
                 lines.append(f'{key}\t{value}')
                 written.add(key)
