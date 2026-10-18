@@ -43,3 +43,18 @@ class KalteneggerIntegrationTests(unittest.TestCase):
             np.testing.assert_allclose(np.sort(abundances.mixing_ratios['N2']),[.78997,.78998])
             self.assertNotIn('H2O2',abundances.mixing_ratios)
             self.assertIn('H2O2',converter.last_inventory)
+
+    def test_local_site_path_is_allowed_but_not_copied_to_planet_config(self):
+        from exoatmosim.nasa import load_site_config, format_science_config
+        with tempfile.TemporaryDirectory() as d:
+            site_file = Path(d) / 'site_paths.conf'
+            site_file.write_text(
+                'kaltenegger_profiles_dir /tmp/downloaded_kaltenegger\\n',
+                encoding='utf8')
+            site = load_site_config(site_file)
+            self.assertEqual(site['kaltenegger_profiles_dir'],
+                             '/tmp/downloaded_kaltenegger')
+            result = format_science_config({'stellar_type': 'G2V', 'Gyr_age': 4.6},
+                                           site_values=site, include_workflow=False)
+            self.assertNotIn('kaltenegger_profiles_dir', result)
+            self.assertIn('stellar_type', result)
