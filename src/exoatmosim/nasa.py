@@ -36,7 +36,7 @@ def closest_spectral_type(spectral_type: Any) -> str:
     if match.group(1) not in base:
         return 'Sun'
     position = base[match.group(1)] + float(match.group(2))
-    candidates = {'F0V': 0, 'F7V': 7, 'G8V': 18, 'K2V': 22,
+    candidates = {'F0V': 0, 'F7V': 7, 'Sun': 12, 'G8V': 18, 'K2V': 22,
                   'K7V': 27, 'M1A': 31, 'M3A': 33, 'M8A': 38}
     return min(candidates, key=lambda name: abs(candidates[name] - position))
 
@@ -113,7 +113,7 @@ def parameters_from_row(row: Any, *, resolution: int = 300_000,
         'impact': val('pl_imppar'), 'omega': val('pl_orblper'),
         'Rs': val('st_rad'), 'Ms': val('st_mass'), 'logg': val('st_logg'),
         'metallicity': val('st_met'),
-        'stellar_type': closest_spectral_type(val('st_spectype', default='nan')),
+        'stellar_type': val('st_spectype', default='nan'),
         'Hmag': val('sy_hmag'), 'Kmag': val('sy_kmag'), 'Jmag': val('sy_jmag'),
         'Gyr_age': val('st_age'), 'loggp': loggp,
         'lampoo': val('pl_projobliq'), 'resolution': resolution,
@@ -173,7 +173,11 @@ _SITE_KEYS = frozenset({
     'fastchem_elements_file', 'fastchem_species_file', 'fastchem_condensates_file',
     'poseidon_path', 'poseidon_input_data', 'pysyn_cdbs',
     'instrument_order_file', 'instrument_library_path',
+    'kaltenegger_profiles_dir',
 })
+
+# Installation paths that must remain in site_paths.conf, not a planet config.
+_SITE_LOCAL_ONLY_KEYS = frozenset({'kaltenegger_profiles_dir'})
 
 
 def load_site_config(path: str | Path) -> dict[str, str]:
@@ -221,6 +225,8 @@ def format_science_config(params: dict[str, Any], *,
             raise ValueError('Unknown site-config keys: ' + ', '.join(sorted(unknown)))
         lines.append('# --- Local backend and database paths (from site config) ---')
         for key, value in site_values.items():
+            if key in _SITE_LOCAL_ONLY_KEYS:
+                continue
             if key not in params:
                 lines.append(f'{key}\t{value}')
                 written.add(key)

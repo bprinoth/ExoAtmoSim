@@ -19,7 +19,7 @@ from .backend_paths import configure_backend_path, configure_poseidon_environmen
 # the user's database, and should not be interpreted as universal support.
 SUPPORTED_SPECIES = frozenset('''H2O CO2 CH4 CO Na K NH3 HCN SO2 H2S PH3 C2H2 OCS TiO VO
 AlO SiO CaO MgO NaO LaO ZrO SO NO PO TiH CrH FeH ScH AlH SiH BeH CaH
-MgH LiH NaH OH OH+ CH NH SH PN PS CS C2 CH3 H3+ N2O NO2 C2H4 C2H6
+MgH LiH NaH OH OH+ CH NH SH PN PS CS C2 CH3 H3+ N2 N2O NO2 C2H4 C2H6
 CH3CN CH3OH CH3Cl GeH4 CS2 O2 O3 C2H6S Al Ba Ba+ Ca Ca+ Cr Cs Fe
 Fe+ Li Mg Mg+ Mn Ni O Rb Sc Ti Ti+ V V+ 12C-16O 13C-16O 12C-18O
 12C-17O 13C-18O 13C-17O H H2 He H- e-'''.split())
@@ -132,16 +132,39 @@ def composition_on_atmosphere(
 
 
 def select_legacy_profiles(config: Config, profile_root: str | Path):
-    """Discover complete 0 Ga Kaltenegger pairs using legacy spectral mapping."""
-    requested = re.sub(r'\s+', '', config['stellar_type'])
-    requested = re.sub(r'(\d+)\.0V$', r'\1V', requested)
-    selected = {'M2.5V': 'M3A', 'M1V': 'M1A', 'M3V': 'M3A', 'M8V': 'M8A'}.get(requested, requested)
+    """Map the original NASA host metadata to a complete template/epoch pair."""
+    import math
+    from .nasa import closest_spectral_type
     root = Path(profile_root)
-    pt = root / 'PT_profiles' / f'AltPT_{selected}_0.0Ga.txt'
-    chem = root / 'chem_profiles' / f'Chem_{selected}_0.0Ga.txt'
-    if not pt.is_file() or not chem.is_file():
-        raise FileNotFoundError(f'No complete 0.0 Ga Kaltenegger profiles for {selected}: {pt}, {chem}')
-    return pt, chem
+    files = {}
+    for pt in (root / 'PT_profiles').glob('AltPT_*_*Ga.txt'):
+        match = re.fullmatch(r'AltPT_(.+)_([0-9]+(?:[.][0-9]+)?)Ga[.]txt', pt.name)
+        if not match or pt.name.startswith('._'):
+            continue
+        stype, age_label = match.groups()
+        if stype not in ('F0V','F7V','G8V','K2V','K7V','M1A','M3A','M8A','Sun') or float(age_label) not in (0.,.8,2.,3.9):
+            continue
+        chem = root / 'chem_profiles' / f'Chem_{stype}_{age_label}Ga.txt'
+        if chem.is_file():
+            files[(stype, float(age_label))] = (pt, chem)
+    if not files:
+        raise FileNotFoundError(f'No complete Kaltenegger PT/Chemistry pairs: {root}')
+    source = config['stellar_type']
+    chosen = closest_spectral_type(source)
+    available = sorted(age for stype, age in files if stype == chosen)
+    if not available:
+        raise FileNotFoundError(f'No complete Kaltenegger pairs for nearest stellar type {chosen}')
+    try:
+        age = float(config['Gyr_age'])
+    except (KeyError, ValueError) as exc:
+        raise ValueError('Kaltenegger mode requires a valid NASA Gyr_age') from exc
+    if not math.isfinite(age) or age < 0:
+        raise ValueError('Kaltenegger mode requires finite nonnegative NASA stellar age')
+    lookback = max(0., 4.6-age)
+    epoch = min(available, key=lambda a: (abs(a-lookback), a))
+    print(f'[KALTENEGGER] NASA stellar_type={source}, Gyr_age={age:g}; '
+          f'Earth-analogue lookback={lookback:g} Ga; selected {chosen}, {epoch:g} Ga')
+    return files[(chosen,epoch)]
 
 
 @dataclass(frozen=True)
@@ -315,25 +338,50 @@ class TransmissionRun:
         from .profiles import AbundanceProfile
         path = Path(path)
         config = Config.from_file(path)
-        if 'bulk_species' not in config or not config['bulk_species'].strip():
-            raise ValueError('Config must explicitly specify bulk_species')
         chemistry = config['chemistry'].strip().lower() if 'chemistry' in config else 'file'
-        atmosphere = Atmosphere.from_config(config, config_dir=path.parent)
-        if chemistry == 'fastchem':
-            from .fastchem import equilibrium_profile
-            abundances = equilibrium_profile(config, atmosphere, config_dir=path.parent)
-        elif chemistry == 'manual':
-            from .manual_chemistry import manual_profile
-            abundances = manual_profile(config, atmosphere)
-        elif chemistry == 'file':
-            if 'abundances_file' not in config:
-                raise ValueError('Config requires abundances_file for chemistry=file')
-            abundance_path = Path(config['abundances_file']).expanduser()
-            if not abundance_path.is_absolute():
-                abundance_path = path.parent / abundance_path
-            abundances = AbundanceProfile.from_file(abundance_path, bulk_species=config['bulk_species'])
+        if chemistry == 'kaltenegger':
+            from .converters.kaltenegger import KalteneggerConverter
+            if 'kaltenegger_profiles_dir' in config:
+                root = Path(config['kaltenegger_profiles_dir']).expanduser()
+                if not root.is_absolute():
+                    root = path.parent / root
+            else:
+                from .backend_paths import discover_site_config
+                site_path = discover_site_config()
+                site = Config.from_file(site_path) if site_path is not None else None
+                if site is None or 'kaltenegger_profiles_dir' not in site:
+                    raise FileNotFoundError(
+                        'Download Kaltenegger profiles from https://zenodo.org/records/14829587 '
+                        'and configure kaltenegger_profiles_dir in config/site_paths.conf; '
+                        'expected PT_profiles/ and chem_profiles/.')
+                root = Path(site['kaltenegger_profiles_dir']).expanduser()
+                if not root.is_absolute():
+                    root = site_path.parent / root
+            root = root.resolve()
+            if not (root / 'PT_profiles').is_dir() or not (root / 'chem_profiles').is_dir():
+                raise FileNotFoundError(f'Kaltenegger folder {root} needs PT_profiles/ and chem_profiles/')
+            pt, chem = select_legacy_profiles(config, root)
+            print(f'[KALTENEGGER] Selected files: {pt.name} / {chem.name}')
+            atmosphere, abundances = KalteneggerConverter().load_earth_like(pt, chem)
         else:
-            raise ValueError('chemistry must be file, manual, or fastchem')
+            if 'bulk_species' not in config or not config['bulk_species'].strip():
+                raise ValueError('Config must explicitly specify bulk_species')
+            atmosphere = Atmosphere.from_config(config, config_dir=path.parent)
+            if chemistry == 'fastchem':
+                from .fastchem import equilibrium_profile
+                abundances = equilibrium_profile(config, atmosphere, config_dir=path.parent)
+            elif chemistry == 'manual':
+                from .manual_chemistry import manual_profile
+                abundances = manual_profile(config, atmosphere)
+            elif chemistry == 'file':
+                if 'abundances_file' not in config:
+                    raise ValueError('Config requires abundances_file for chemistry=file')
+                abundance_path = Path(config['abundances_file']).expanduser()
+                if not abundance_path.is_absolute():
+                    abundance_path = path.parent / abundance_path
+                abundances = AbundanceProfile.from_file(abundance_path, bulk_species=config['bulk_species'])
+            else:
+                raise ValueError('chemistry must be kaltenegger, file, manual, or fastchem')
         abundances = abundances.on_atmosphere(atmosphere)
         model = PoseidonTransmissionModel.from_config(config, config_path=path)
         model.validate(atmosphere, abundances.as_poseidon_composition(),

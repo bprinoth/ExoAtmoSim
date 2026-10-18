@@ -9,3 +9,8 @@ Excluded from this source distribution: private machine config paths, historical
 - Standardized planet-config exposure duration to `exposure_time` (seconds);
   removed `texp` and `exp_time` configuration aliases. Existing configs must
   rename one of those keys to `exposure_time`.
+
+## Development v0.9.28.11
+- Optional Kaltenegger chemistry, external Zenodo profiles, no data redistribution.
+- NASA spectral metadata preserved; N2 residual filled before unsupported-opacity filtering.
+- FastChem unchanged; the approximate Earth-analogue geological clock is disclosed in README.
