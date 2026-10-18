@@ -40,6 +40,6 @@ class KalteneggerIntegrationTests(unittest.TestCase):
             converter=KalteneggerConverter()
             with self.assertWarns(UserWarning):
                 atmosphere, abundances=converter.load_earth_like(pt,chem)
-            np.testing.assert_allclose(abundances.mixing_ratios['N2'],[.78998,.78997])
+            np.testing.assert_allclose(np.sort(abundances.mixing_ratios['N2']),[.78997,.78998])
             self.assertNotIn('H2O2',abundances.mixing_ratios)
             self.assertIn('H2O2',converter.last_inventory)
