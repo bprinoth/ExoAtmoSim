@@ -78,3 +78,51 @@ Use `exposure_time` (seconds) for the integration time of **each exposure**,
 The old `texp` and `exp_time` configuration keys are no longer accepted; update
 existing planet configs before simulating. The scheduler will explicitly report
 a missing `exposure_time` instead of silently choosing a different parameter.
+
+### Optional Kaltenegger/Rugheimer Earth-like chemistry
+
+Download the third-party atmosphere profiles from
+[Zenodo record 14829587](https://zenodo.org/records/14829587).
+**They are not bundled or redistributed with ExoAtmoSim.** Extract
+the files preserving this layout:
+
+```text
+Kaltenegger_profiles/
+  PT_profiles/AltPT_F0V_0.0Ga.txt
+  chem_profiles/Chem_F0V_0.0Ga.txt
+  ... (all matching files)
+```
+
+Copy `config/site_paths.example.conf` to your private
+`config/site_paths.conf` and set:
+
+```text
+kaltenegger_profiles_dir /absolute/path/to/Kaltenegger_profiles
+```
+
+Set `chemistry kaltenegger` in a copy of your planet config; other
+settings and FastChem behavior remain unchanged. The original NASA
+`stellar_type` and `Gyr_age` values are preserved. Only when
+Kaltenegger chemistry is selected, ExoAtmoSim maps to the nearest
+available F0V, F7V, G8V, K2V, K7V, M1A, M3A, M8A or Sun template
+and 0.0, 0.8, 2.0 or 3.9 Ga geological lookback profile.
+
+The lookback mapping, `max(0, 4.6 - Gyr_age)`, is an **approximate
+Earth-analogue clock**, not the geological age of an exoplanet.
+The PT format has `Z,T,P` columns (km, K, mbar); abundances have
+`Molecule`, `<species>_MR` and `<species>_ALT` continuation records.
+N2 is computed from all abundances *before* dropping species without
+POSEIDON opacity; the remaining VMRs are not renormalized. Omitted
+opacity species are reported as a limitation. Related work:
+https://arxiv.org/abs/1912.11149 .
+
+Run `exoatmosim atmosphere`, `exoatmosim spectrum`, then
+`exoatmosim observe` using the same configuration and seed.
+
+### Contributions and integration requests
+
+**Integration wishes are welcome!** If you would like support for another
+atmospheric chemistry model, radiative-transfer backend, instrument, or
+observing workflow, please [get in touch](https://bprinoth.github.io/)
+or [open a GitHub issue](https://github.com/bprinoth/ExoAtmoSim/issues).
+Scientific collaborations and contributions are very welcome.
