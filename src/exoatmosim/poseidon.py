@@ -19,7 +19,7 @@ from .backend_paths import configure_backend_path, configure_poseidon_environmen
 # the user's database, and should not be interpreted as universal support.
 SUPPORTED_SPECIES = frozenset('''H2O CO2 CH4 CO Na K NH3 HCN SO2 H2S PH3 C2H2 OCS TiO VO
 AlO SiO CaO MgO NaO LaO ZrO SO NO PO TiH CrH FeH ScH AlH SiH BeH CaH
-MgH LiH NaH OH OH+ CH NH SH PN PS CS C2 CH3 H3+ N2O NO2 C2H4 C2H6
+MgH LiH NaH OH OH+ CH NH SH PN PS CS C2 CH3 H3+ N2 N2O NO2 C2H4 C2H6
 CH3CN CH3OH CH3Cl GeH4 CS2 O2 O3 C2H6S Al Ba Ba+ Ca Ca+ Cr Cs Fe
 Fe+ Li Mg Mg+ Mn Ni O Rb Sc Ti Ti+ V V+ 12C-16O 13C-16O 12C-18O
 12C-17O 13C-18O 13C-17O H H2 He H- e-'''.split())
