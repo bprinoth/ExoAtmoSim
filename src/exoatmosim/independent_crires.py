@@ -150,7 +150,10 @@ def run(config_path, stellar_npz, *, output=None, snr=None, seed=42, overwrite=F
     diagnostic = out / 'diagnostics'
     diagnostic.mkdir(parents=True, exist_ok=True)
     schedule = make_observation_schedule(config_path)
-    save_schedule(schedule, diagnostic)
+    save_schedule(schedule, diagnostic, plots=False)
+    legacy_geometry = diagnostic / 'observation_geometry.png'
+    if legacy_geometry.exists():
+        legacy_geometry.unlink()
     conditions = observing_conditions(
         schedule,
         humidity_percent=cfg.get_float('observing_humidity_percent', 50.0),
@@ -169,8 +172,6 @@ def run(config_path, stellar_npz, *, output=None, snr=None, seed=42, overwrite=F
     conditions['pwv_mm'].unit = 'mm'
     write_observing_conditions(out / 'observing_conditions.ecsv', conditions)
     conditions = read_observing_conditions(out / 'observing_conditions.ecsv', schedule)
-    with publication_style():
-        plot_observing_conditions(conditions, diagnostic / 'observing_conditions.png')
     if schedule.mode == 'max_altitude':
         print('[INFO] Idealized observation: the synthetic transit center is placed at '
               f'maximum altitude (JD UTC {schedule.center_jd_utc:.9f}); '
@@ -234,6 +235,11 @@ def run(config_path, stellar_npz, *, output=None, snr=None, seed=42, overwrite=F
             pf = np.asarray(hdul[2].data, float)
         written = make_native_viola_observation(schedule, rv_star, rv_planet, weight,
                   cfg, config_path, pw, pf, out, seed=seed, overwrite=overwrite)
+        with fits.open(out / 'snr_res_0.fits') as snr_hdul:
+            snr_by_exposure = np.median(np.asarray(snr_hdul[0].data, float), axis=1)
+        plot_observing_conditions(
+            conditions, diagnostic / 'observing_conditions.png',
+            snr_per_exposure=snr_by_exposure)
         write_observation_times(out / 'obs_times', schedule)
         run_manifest_path.write_text(json.dumps({
             'instrument':instrument,'noise_seed':seed,'config_sha256':cfg_digest,
@@ -311,6 +317,10 @@ def run(config_path, stellar_npz, *, output=None, snr=None, seed=42, overwrite=F
     results = simulate_orders(orders, sw, sf, pw, pf, rv_star, rv_planet,
                               weight, snr=use_snr, seed=seed,
                               stellar_observer_frame=False, **extra)
+    # The constant-SNR backend specifies a nominal per-exposure S/N.
+    plot_observing_conditions(
+        conditions, diagnostic / 'observing_conditions.png',
+        snr_per_exposure=np.full(len(schedule.midpoint_jd_utc), use_snr))
     written = write_spectral_orders(results, out, overwrite=overwrite)
     # Mandatory quick-look diagnostic: verify that an actual order was synthesized.
     import matplotlib
