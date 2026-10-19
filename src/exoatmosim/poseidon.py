@@ -214,7 +214,7 @@ class TransmissionSpectrum:
         fig, ax = plt.subplots(figsize=(11, 4))
         ax.plot(self.wavelength_um, self.transmission, lw=0.7)
         ax.set_xlabel('Wavelength (µm)')
-        ax.set_ylabel('Transmission (1 − POSEIDON spectrum)')
+        ax.set_ylabel('Transmission T')
         ax.set_title('POSEIDON transmission spectrum')
         fig.tight_layout()
         fig.savefig(path, dpi=180)
