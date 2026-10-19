@@ -116,6 +116,9 @@ def calculate_template(config: str | Path, *, species: str, seed: int = 42,
     if not species or '/' in species or chr(92) in species or species in ('.', '..'):
         raise ValueError('Provide a valid single species name (e.g. O3)')
     path, run_dir, _ = _locations(config, seed)
+    destination = run_dir / 'templates' / f'{species}.fits'
+    if destination.exists() and not overwrite:
+        raise FileExistsError(f'Existing species template: {destination}; use --overwrite')
     run = TransmissionRun.from_config(path)
     ratios = run.abundances.mixing_ratios
     if species not in ratios:
@@ -130,9 +133,6 @@ def calculate_template(config: str | Path, *, species: str, seed: int = 42,
                 if name in bulk or name == species}
     template_abundances = AbundanceProfile(
         run.abundances.pressure_bar, selected, bulk)
-    destination = run_dir / 'templates' / f'{species}.fits'
-    if destination.exists() and not overwrite:
-        raise FileExistsError(f'Existing species template: {destination}; use --overwrite')
     _snapshot(path, run_dir, overwrite=overwrite)
     spectrum = run.model.compute_transmission(
         name=run.name, config=run.config, atmosphere=run.atmosphere,
