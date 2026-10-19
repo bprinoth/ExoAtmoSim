@@ -112,7 +112,7 @@ def calculate_template(config: str | Path, *, species: str, seed: int = 42,
     from .spectrum_fits import write_spectrum_fits
 
     species = species.strip()
-    if not species or '/' in species or '\\\\' in species or species in ('.', '..'):
+    if not species or '/' in species or chr(92) in species or species in ('.', '..'):
         raise ValueError('Provide a valid single species name (e.g. O3)')
     path, run_dir, _ = _locations(config, seed)
     run = TransmissionRun.from_config(path)
