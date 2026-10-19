@@ -1,12 +1,13 @@
 """Consistent publication-style diagnostics; never modifies global rcParams.
 
-Montserrat is optional. Supply ``font_path`` or set ``EXOATMOSIM_FONT_PATH``;
-otherwise use a common sans-serif fallback. No font is bundled.
+Try packaged Montserrat first; explicit overrides take precedence. Fall back to
+DejaVu Sans when the optional packaged font has not been added.
 """
 from __future__ import annotations
 
 from contextlib import contextmanager
 import os
+from importlib.resources import files, as_file
 from pathlib import Path
 import warnings
 
@@ -21,11 +22,18 @@ def publication_style(font_path: str | Path | None = None):
     family = 'DejaVu Sans'
     if filename:
         path = Path(filename).expanduser()
-        if path.is_file():
+        if not path.is_file():
+            warnings.warn(f'Plot font {path} not found; using {family}', stacklevel=2)
+        else:
             font_manager.fontManager.addfont(str(path))
             family = font_manager.FontProperties(fname=str(path)).get_name()
-        else:
-            warnings.warn(f'Plot font {path} not found; using {family}', stacklevel=2)
+    else:
+        # importlib.resources also supports wheels and non-editable installs.
+        packaged = files('exoatmosim').joinpath('resources', 'fonts', 'Montserrat-Regular.ttf')
+        if packaged.is_file():
+            with as_file(packaged) as path:
+                font_manager.fontManager.addfont(str(path))
+                family = font_manager.FontProperties(fname=str(path)).get_name()
     settings = {
         'font.family': family,
         'font.size': 12,

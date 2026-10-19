@@ -117,15 +117,18 @@ def read_observing_conditions(path, schedule=None):
 
 
 def plot_observing_conditions(table, path):
+    """Plot atmospheric water content and airmass (no nominal S/N panel)."""
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
     from exoatmosim.plotting import publication_style
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    t = (np.asarray(table['midpoint_jd_utc'],float) - float(table['midpoint_jd_utc'][0])) * 24
+    t = (np.asarray(table['midpoint_jd_utc'], float) -
+         float(table['midpoint_jd_utc'][0])) * 24
     with publication_style():
-        fig, axes = plt.subplots(3, 1, figsize=(10, 8), sharex=True, constrained_layout=True)
+        fig, axes = plt.subplots(2, 1, figsize=(10, 6), sharex=True,
+                                 constrained_layout=True)
         if 'pwv_mm' in table.colnames:
             axes[0].plot(t, table['pwv_mm'])
             axes[0].set_ylabel('PWV [mm]')
@@ -133,12 +136,8 @@ def plot_observing_conditions(table, path):
             axes[0].plot(t, table['humidity_percent'])
             axes[0].set_ylabel('Relative humidity [%]')
         axes[1].plot(t, table['airmass'])
-        axes[1].set_ylabel('Airmass')
-        axes[2].plot(t, table['temperature_k'], label='Temperature [K]')
-        ax2 = axes[2].twinx()
-        ax2.plot(t, table['pressure_hpa'], linestyle='--', label='Pressure [hPa]')
-        axes[2].set(xlabel='Hours since first exposure', ylabel='Temperature [K]')
-        ax2.set_ylabel('Pressure [hPa]')
+        axes[1].set(xlabel='Hours since first exposure', ylabel='Airmass')
+        fig.align_ylabels(axes)
         fig.savefig(path, dpi=180)
         plt.close(fig)
     return path

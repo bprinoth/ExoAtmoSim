@@ -113,6 +113,14 @@ def run(config_path, stellar_npz, *, output=None, snr=None, seed=42, overwrite=F
     config_path = Path(config_path).resolve()
     cfg = Config.from_file(config_path)
     instrument = str(cfg.get('instrument', 'CRIRES_K')).upper()
+    # Validate even when a backend does not immediately use these parameters.
+    # In particular, float('nan') is accepted by Config.get_float().
+    vsini = cfg.get_float('vsini', 0.)
+    resolution = cfg.get_float('resolution')
+    if not np.isfinite(vsini) or vsini < 0:
+        raise ValueError('Stellar vsini must be finite and nonnegative')
+    if not np.isfinite(resolution) or resolution <= 0:
+        raise ValueError('Instrumental resolution must be positive and finite')
     if instrument not in ('CRIRES_K', 'ANDES', 'ANDES_K', 'IGRINS_HK', 'IGRINS2_HK', 'SPIROU', 'ESPRESSO', 'VIOLA_K', 'VIOLA_H', 'VIOLA_J'):
         raise ValueError(f'Unsupported instrument: {instrument}')
     if output is not None:
@@ -142,7 +150,10 @@ def run(config_path, stellar_npz, *, output=None, snr=None, seed=42, overwrite=F
     diagnostic = out / 'diagnostics'
     diagnostic.mkdir(parents=True, exist_ok=True)
     schedule = make_observation_schedule(config_path)
-    save_schedule(schedule, diagnostic)
+    save_schedule(schedule, diagnostic, plots=False)
+    legacy_geometry = diagnostic / 'observation_geometry.png'
+    if legacy_geometry.exists():
+        legacy_geometry.unlink()
     conditions = observing_conditions(
         schedule,
         humidity_percent=cfg.get_float('observing_humidity_percent', 50.0),
@@ -161,7 +172,6 @@ def run(config_path, stellar_npz, *, output=None, snr=None, seed=42, overwrite=F
     conditions['pwv_mm'].unit = 'mm'
     write_observing_conditions(out / 'observing_conditions.ecsv', conditions)
     conditions = read_observing_conditions(out / 'observing_conditions.ecsv', schedule)
-    plot_observing_conditions(conditions, diagnostic / 'observing_conditions.png')
     if schedule.mode == 'max_altitude':
         print('[INFO] Idealized observation: the synthetic transit center is placed at '
               f'maximum altitude (JD UTC {schedule.center_jd_utc:.9f}); '
@@ -225,6 +235,7 @@ def run(config_path, stellar_npz, *, output=None, snr=None, seed=42, overwrite=F
             pf = np.asarray(hdul[2].data, float)
         written = make_native_viola_observation(schedule, rv_star, rv_planet, weight,
                   cfg, config_path, pw, pf, out, seed=seed, overwrite=overwrite)
+        plot_observing_conditions(conditions, diagnostic / 'observing_conditions.png')
         write_observation_times(out / 'obs_times', schedule)
         run_manifest_path.write_text(json.dumps({
             'instrument':instrument,'noise_seed':seed,'config_sha256':cfg_digest,
@@ -280,10 +291,16 @@ def run(config_path, stellar_npz, *, output=None, snr=None, seed=42, overwrite=F
         raise ValueError('Stellar spectrum does not cover instrument orders')
     sw = sw[selected]
     sf = sf[selected]
+    unbroadened_wave, unbroadened_flux = sw.copy(), sf.copy()
     resolution = cfg.get_float('resolution')
     vsini = cfg.get_float('vsini', 0.)
     print(f'Stellar rotational broadening: vsini={vsini:.3f} km/s; instrument R={resolution:.0f}')
     sw, sf = broaden_spectrum(sw, sf, resolution=resolution, vsini_kms=vsini)
+    from exoatmosim.observing.viola_plots import plot_stellar_spectrum_comparison
+    stellar_diagnostic = plot_stellar_spectrum_comparison(
+        out, unbroadened_wave, unbroadened_flux, sw, sf, vsini,
+        instrument_resolution=resolution)
+    print(f'Stellar spectrum comparison: {stellar_diagnostic}')
     # Broaden the POSEIDON transmission to instrument resolution (without planetary rotation).
     pw, pf = broaden_spectrum(pw, pf, resolution=resolution)
     use_snr = float(snr) if snr is not None else cfg.get_float('SNR', 100.0)
@@ -302,6 +319,7 @@ def run(config_path, stellar_npz, *, output=None, snr=None, seed=42, overwrite=F
     results = simulate_orders(orders, sw, sf, pw, pf, rv_star, rv_planet,
                               weight, snr=use_snr, seed=seed,
                               stellar_observer_frame=False, **extra)
+    plot_observing_conditions(conditions, diagnostic / 'observing_conditions.png')
     written = write_spectral_orders(results, out, overwrite=overwrite)
     # Mandatory quick-look diagnostic: verify that an actual order was synthesized.
     import matplotlib

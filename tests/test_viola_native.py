@@ -1,5 +1,7 @@
 """Fast, deterministic VIOLA ETC noise and photometric reference tests."""
 import unittest
+import tempfile
+from pathlib import Path
 import numpy as np
 from exoatmosim.config import Config
 from exoatmosim.observing.viola_native import (
@@ -54,5 +56,105 @@ class ViolaNativeTests(unittest.TestCase):
         self.assertLess(np.ptp(star)/np.mean(star),1e-4)
         # Each sample represents the SAME-sized resolution element, not an
         # independent detector bin. Adjacent samples are correlated physically.
+
+
+    def test_observe_rejects_nan_vsini_before_creating_products(self):
+        from exoatmosim.independent_crires import run
+        with tempfile.TemporaryDirectory() as temp:
+            config = Path(temp) / 'config'
+            config.write_text('instrument VIOLA_K\nresolution 300000\nvsini nan\n')
+            with self.assertRaisesRegex(ValueError, 'vsini.*finite'):
+                run(config, None)
+            self.assertFalse((Path(temp) / 'simulations').exists())
+
+    def test_observe_rejects_nonfinite_resolution(self):
+        from exoatmosim.independent_crires import run
+        with tempfile.TemporaryDirectory() as temp:
+            config = Path(temp) / 'config'
+            config.write_text('instrument VIOLA_K\nresolution nan\nvsini 4\n')
+            with self.assertRaisesRegex(ValueError, 'resolution.*finite'):
+                run(config, None)
+
+    def test_rotation_and_lsf_are_separate_operations(self):
+        from exoatmosim.observing.spectral_processing import broaden_spectrum
+        wave = np.linspace(2100., 2101., 2001)
+        line = 1. - .3 * np.exp(-.5 * ((wave - 2100.5) / .003)**2)
+        instrumental_wave, instrumental = broaden_spectrum(
+            wave, line, resolution=300000.)
+        self.assertEqual(len(instrumental_wave), len(instrumental))
+        try:
+            from PyAstronomy import pyasl
+        except ImportError:
+            self.skipTest('PyAstronomy unavailable')
+        rotated_wave, rotated = broaden_spectrum(
+            wave, line, resolution=None, vsini_kms=5.)
+        combined_wave, combined = broaden_spectrum(
+            rotated_wave, rotated, resolution=300000.)
+        # fastRotBroad uses a finite convolution window: its boundary pixels
+        # can be depressed by edge padding. Compare the isolated line core,
+        # not minima across the full wavelength interval.
+        core_instrument = np.abs(instrumental_wave - 2100.5) < 0.06
+        core_combined = np.abs(combined_wave - 2100.5) < 0.06
+        self.assertGreater(np.min(combined[core_combined]),
+                           np.min(instrumental[core_instrument]))
+        self.assertTrue(np.isfinite(combined).all())
+
+
+    def test_viola_exposure_loop_preserves_stellar_rest_frame_grid(self):
+        # Regression: the LSF's returned wavelength axis must never replace
+        # the stellar-rest-frame axis that subsequent RV shifts interpolate.
+        import ast
+        import inspect
+        import textwrap
+        from exoatmosim.observing.viola_native import make_native_viola_observation
+        tree = ast.parse(textwrap.dedent(inspect.getsource(make_native_viola_observation)))
+        exposure_loop = next(node for node in ast.walk(tree)
+                             if isinstance(node, ast.For)
+                             and isinstance(node.target, ast.Name)
+                             and node.target.id == 'i')
+        assignments = [target.id for node in ast.walk(exposure_loop)
+                       if isinstance(node, (ast.Assign, ast.AnnAssign))
+                       for target in (node.targets if isinstance(node, ast.Assign) else [node.target])
+                       for target in (target.elts if isinstance(target, (ast.Tuple, ast.List)) else [target])
+                       if isinstance(target, ast.Name)]
+        self.assertNotIn('star_wave', assignments)
+        self.assertIn('lsf_star_wave', assignments)
+
+
+    def test_stellar_diagnostic_exists_without_duplicate_viola_plot(self):
+        from exoatmosim.observing.viola_plots import plot_stellar_spectrum_comparison
+        wave = np.linspace(2100., 2101., 40)
+        stellar = 1. - .2*np.exp(-.5*((wave-2100.5)/.02)**2)
+        rotated = 1. - .1*np.exp(-.5*((wave-2100.5)/.04)**2)
+        with tempfile.TemporaryDirectory() as tmp:
+            output = plot_stellar_spectrum_comparison(
+                tmp, wave, stellar, wave, rotated, 5., instrument_resolution=300000.)
+            self.assertTrue(output.is_file())
+            self.assertEqual(output.name, 'stellar_spectrum_comparison.png')
+            self.assertFalse((Path(tmp)/'diagnostics'/'viola_spectral_comparison.png').exists())
+
+    def test_observing_conditions_plot_has_two_panels(self):
+        from astropy.table import Table
+        from exoatmosim.observing.conditions import plot_observing_conditions
+        table = Table({'midpoint_jd_utc':[2450000.,2450000.01],
+                       'pwv_mm':[2.,3.], 'airmass':[1.1,1.2]})
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp)/'observing_conditions.png'
+            self.assertEqual(plot_observing_conditions(table, path), path)
+            self.assertTrue(path.is_file())
+
+    def test_stellar_plot_call_is_inside_viola_observation_not_pwv_sampler(self):
+        import ast
+        import inspect
+        import textwrap
+        from exoatmosim.observing import viola_native
+        def calls(fn):
+            tree = ast.parse(textwrap.dedent(inspect.getsource(fn)))
+            return {node.func.id for node in ast.walk(tree)
+                    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)}
+        self.assertIn('plot_stellar_spectrum_comparison',
+                      calls(viola_native.make_native_viola_observation))
+        self.assertNotIn('plot_stellar_spectrum_comparison',
+                         calls(viola_native.sample_viola_pwv))
 
 if __name__=='__main__': unittest.main()
