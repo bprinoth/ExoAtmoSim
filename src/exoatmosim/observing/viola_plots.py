@@ -26,9 +26,10 @@ def plot_stellar_spectrum_comparison(output_dir, original_wave_nm, original_flux
         raise ValueError('Invalid stellar rotation diagnostic arrays')
     out = Path(output_dir) / 'diagnostics' / 'stellar_spectrum_comparison.png'
     out.parent.mkdir(parents=True, exist_ok=True)
-    label = (f'Broadened (vsini = {vsini_kms:g} km/s)' +
-             (f', R = {instrument_resolution:g})' if instrument_resolution is not None
-              else ', before instrumental LSF)'))
+    if instrument_resolution is None:
+        label = f'Rotationally broadened (vsini = {vsini_kms:g} km/s)'
+    else:
+        label = f'Broadened (vsini = {vsini_kms:g} km/s, R = {instrument_resolution:g})'
     with publication_style():
         fig, ax = plt.subplots(figsize=(12, 5))
         ax.plot(original_wave_nm, original_flux, lw=.75, alpha=.7, label='PHOENIX (unbroadened)')
