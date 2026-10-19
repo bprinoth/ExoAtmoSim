@@ -20,6 +20,11 @@ def main(argv=None):
     atmosphere.add_argument('config', type=Path)
     atmosphere.add_argument('--seed', type=int, default=42)
     atmosphere.add_argument('--overwrite', action='store_true')
+    template = sub.add_parser('template', help='Compute a single-species cross-correlation transmission template')
+    template.add_argument('config', type=Path)
+    template.add_argument('--species', required=True, help='Species name as used in atmospheric abundances (e.g. O3)')
+    template.add_argument('--seed', type=int, default=42)
+    template.add_argument('--overwrite', action='store_true')
     spectrum = sub.add_parser('spectrum', help='Compute a planetary transmission spectrum')
     spectrum.add_argument('config', type=Path)
     spectrum.add_argument('--backend', default='poseidon', choices=['poseidon'])
@@ -45,6 +50,9 @@ def main(argv=None):
                 refresh=args.refresh_config, fresh=args.fresh)
     elif args.command == 'atmosphere':
         result = workflow.calculate_atmosphere(args.config, seed=args.seed, overwrite=args.overwrite)
+    elif args.command == 'template':
+        result = workflow.calculate_template(args.config, species=args.species,
+                                             seed=args.seed, overwrite=args.overwrite)
     elif args.command == 'spectrum':
         result = workflow.calculate_spectrum(args.config, backend=args.backend,
                                              seed=args.seed, overwrite=args.overwrite)
