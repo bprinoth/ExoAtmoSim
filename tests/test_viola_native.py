@@ -131,6 +131,7 @@ class ViolaNativeTests(unittest.TestCase):
             out = Path(tmp)
             rotation_file = plot_stellar_rotation(out, wave, stellar, wave, rotated, 5.)
             self.assertTrue(rotation_file.is_file())
+            self.assertEqual(rotation_file.name, 'stellar_spectrum_comparison.png')
             comparison = plot_viola_diagnostics(
                 out, wave, np.stack([stellar]), np.stack([rotated]),
                 wave, np.ones_like(wave), np.array([1.]))
