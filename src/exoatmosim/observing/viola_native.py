@@ -142,17 +142,6 @@ def sample_viola_pwv(schedule, *, mean_mm=2.5, sigma_mm=0.5,
             or np.any(np.diff(times) <= 0) or not np.isfinite([mean_mm, sigma_mm, timescale_minutes]).all()
             or mean_mm <= 0 or sigma_mm < 0 or timescale_minutes <= 0):
         raise ValueError('Invalid VIOLA PWV schedule or parameters')
-    from .viola_plots import plot_stellar_spectrum_comparison
-    stellar_diagnostic = plot_stellar_spectrum_comparison(
-        output_dir, star.wavelength_nm, original_stellar_flux,
-        star_wave, star_shape, vsini)
-    print(f'Stellar spectrum comparison: {stellar_diagnostic}')
-    # Remove legacy duplicate only when regenerating an existing observation.
-    if overwrite:
-        for old_name in ('planet_transmission.png', 'viola_spectral_comparison.png'):
-            old_plot = output_dir / 'diagnostics' / old_name
-            if old_plot.exists():
-                old_plot.unlink()
     rng = np.random.default_rng(seed)
     z = np.empty(len(times))
     z[0] = rng.normal() if sigma_mm else 0.
@@ -313,6 +302,17 @@ def make_native_viola_observation(schedule, rv_star, rv_planet, transit_weight,
                'model_flux_0.fits','noise_0.fits','snr_res_0.fits','viola_native_manifest.json')]
     if not overwrite and any(p.exists() for p in planned):
         raise FileExistsError('VIOLA native outputs exist; use --overwrite')
+    from .viola_plots import plot_stellar_spectrum_comparison
+    stellar_diagnostic = plot_stellar_spectrum_comparison(
+        output_dir, star.wavelength_nm, original_stellar_flux,
+        star_wave, star_shape, vsini)
+    print(f'Stellar spectrum comparison: {stellar_diagnostic}')
+    # Remove legacy duplicate only when regenerating an existing observation.
+    if overwrite:
+        for old_name in ('planet_transmission.png', 'viola_spectral_comparison.png'):
+            old_plot = output_dir / 'diagnostics' / old_name
+            if old_plot.exists():
+                old_plot.unlink()
     rng = np.random.default_rng(seed)
     stars, models, sigmas, draws, snrs = [], [], [], [], []
     for i in range(n_exp):
