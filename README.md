@@ -281,11 +281,11 @@ profile and the configured bulk species**, and excludes other trace
 absorbers from the POSEIDON calculation. It does not currently read a
 persisted atmosphere cache or remove bulk continuum opacity. The template is
 saved as `simulations/<INSTRUMENT>/seed_0042/templates/O3.fits`, using
-the same 3-HDU air-wavelength/transmission FITS convention as `spectrum`.
+the same 3-HDU air-wavelength FITS layout as `spectrum`, but its third HDU contains the **raw POSEIDON transit depth T** rather than the normal planet spectrum's **1 - T**.
 It does not overwrite the normal full-model planetary FITS. Use
 `--overwrite` to replace a previously generated template.
 
-These are single-absorber **transmission spectra**, not continuum-subtracted,
+These are single-absorber **transit-depth spectra**, not continuum-subtracted,
 normalized or high-pass-filtered CCF vectors. Downstream cross-correlation
 analysis should apply the same instrumental processing, filtering and
 normalization to model and observed data. For physical consistency, note
