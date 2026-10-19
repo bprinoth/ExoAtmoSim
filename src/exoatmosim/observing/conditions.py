@@ -116,19 +116,19 @@ def read_observing_conditions(path, schedule=None):
     return table
 
 
-def plot_observing_conditions(table, path, *, snr_per_exposure):
+def plot_observing_conditions(table, path):
+    """Plot atmospheric water content and airmass (no nominal S/N panel)."""
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
     from exoatmosim.plotting import publication_style
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    t = (np.asarray(table['midpoint_jd_utc'],float) - float(table['midpoint_jd_utc'][0])) * 24
-    snr = np.asarray(snr_per_exposure, dtype=float)
-    if snr.shape != (len(table),) or not np.isfinite(snr).all() or np.any(snr < 0):
-        raise ValueError('S/N must be finite, nonnegative and have one value per exposure')
+    t = (np.asarray(table['midpoint_jd_utc'], float) -
+         float(table['midpoint_jd_utc'][0])) * 24
     with publication_style():
-        fig, axes = plt.subplots(3, 1, figsize=(10, 8), sharex=True, constrained_layout=True)
+        fig, axes = plt.subplots(2, 1, figsize=(10, 6), sharex=True,
+                                 constrained_layout=True)
         if 'pwv_mm' in table.colnames:
             axes[0].plot(t, table['pwv_mm'])
             axes[0].set_ylabel('PWV [mm]')
@@ -136,10 +136,7 @@ def plot_observing_conditions(table, path, *, snr_per_exposure):
             axes[0].plot(t, table['humidity_percent'])
             axes[0].set_ylabel('Relative humidity [%]')
         axes[1].plot(t, table['airmass'])
-        axes[1].set_ylabel('Airmass')
-        axes[2].plot(t, snr)
-        axes[2].set(xlabel='Hours since first exposure',
-                    ylabel='S/N per resolution element')
+        axes[1].set(xlabel='Hours since first exposure', ylabel='Airmass')
         fig.align_ylabels(axes)
         fig.savefig(path, dpi=180)
         plt.close(fig)
