@@ -143,4 +143,18 @@ class ViolaNativeTests(unittest.TestCase):
             self.assertEqual(plot_observing_conditions(table, path), path)
             self.assertTrue(path.is_file())
 
+    def test_stellar_plot_call_is_inside_viola_observation_not_pwv_sampler(self):
+        import ast
+        import inspect
+        import textwrap
+        from exoatmosim.observing import viola_native
+        def calls(fn):
+            tree = ast.parse(textwrap.dedent(inspect.getsource(fn)))
+            return {node.func.id for node in ast.walk(tree)
+                    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)}
+        self.assertIn('plot_stellar_spectrum_comparison',
+                      calls(viola_native.make_native_viola_observation))
+        self.assertNotIn('plot_stellar_spectrum_comparison',
+                         calls(viola_native.sample_viola_pwv))
+
 if __name__=='__main__': unittest.main()
