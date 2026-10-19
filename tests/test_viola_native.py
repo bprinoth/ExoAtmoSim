@@ -120,4 +120,21 @@ class ViolaNativeTests(unittest.TestCase):
         self.assertNotIn('star_wave', assignments)
         self.assertIn('lsf_star_wave', assignments)
 
+
+    def test_viola_plots_keep_publication_style_and_skip_duplicate_planet(self):
+        from exoatmosim.observing.viola_plots import (
+            plot_viola_diagnostics, plot_stellar_rotation)
+        wave = np.linspace(2100., 2101., 40)
+        stellar = 1. - 0.2 * np.exp(-0.5*((wave-2100.5)/0.02)**2)
+        rotated = 1. - 0.1 * np.exp(-0.5*((wave-2100.5)/0.04)**2)
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            rotation_file = plot_stellar_rotation(out, wave, stellar, wave, rotated, 5.)
+            self.assertTrue(rotation_file.is_file())
+            comparison = plot_viola_diagnostics(
+                out, wave, np.stack([stellar]), np.stack([rotated]),
+                wave, np.ones_like(wave), np.array([1.]))
+            self.assertTrue(comparison.is_file())
+            self.assertFalse((out/'diagnostics'/'planet_transmission.png').exists())
+
 if __name__=='__main__': unittest.main()
