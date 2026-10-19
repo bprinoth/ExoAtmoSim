@@ -140,6 +140,7 @@ def plot_observing_conditions(table, path, *, snr_per_exposure):
         axes[2].plot(t, snr)
         axes[2].set(xlabel='Hours since first exposure',
                     ylabel='S/N per resolution element')
+        fig.align_ylabels(axes)
         fig.savefig(path, dpi=180)
         plt.close(fig)
     return path
