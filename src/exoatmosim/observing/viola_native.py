@@ -208,8 +208,12 @@ def make_native_viola_observation(schedule, rv_star, rv_planet, transit_weight,
     grid = load_instrument_orders(instrument)[0]
     if not cfg.get_bool('air', True):
         raise ValueError('VIOLA native requires air True for PHOENIX')
-    if cfg.get_float('resolution', 300000.) != 300000.:
-        raise ValueError('VIOLA native reference model requires resolution 300000')
+    resolution = cfg.get_float('resolution', 300000.)
+    vsini = cfg.get_float('vsini', 0.)
+    if not np.isfinite(resolution) or resolution <= 0:
+        raise ValueError('VIOLA instrumental resolution must be positive and finite')
+    if not np.isfinite(vsini) or vsini < 0:
+        raise ValueError('Stellar vsini must be finite and nonnegative')
     magnitude = cfg.get_float(f'{band}mag')
     n_exp = len(schedule.altitude_deg)
     rv_star = np.asarray(rv_star, float)
@@ -222,11 +226,11 @@ def make_native_viola_observation(schedule, rv_star, rv_planet, transit_weight,
             or np.any((weight < 0) | (weight > 1)) or np.any(np.diff(pw) <= 0)
             or pf.shape != pw.shape or not np.isfinite(pf).all()):
         raise ValueError('Invalid VIOLA orbital arrays')
-    # Dense log wavelength grid resolves the R=300k LSF and narrow tellurics.
+    # Dense log wavelength grid resolves the configured LSF and narrow tellurics.
     margin = 5.0 + 2.*max(np.max(np.abs(rv_star)), np.max(np.abs(rv_planet)))*grid[-1]/299792.458
     r_sample = cfg.get_float('viola_internal_sampling_r', 900000.)
-    if r_sample < 900000.:
-        raise ValueError('VIOLA requires internal sampling R >= 900000')
+    if not np.isfinite(r_sample) or r_sample < max(900000., 3.*resolution):
+        raise ValueError('VIOLA internal sampling must be finite and >= max(900000, 3*R)')
     n_hi = int(np.ceil(np.log((grid[-1]+margin)/(grid[0]-margin))*r_sample))+1
     high = np.geomspace(grid[0]-margin, grid[-1]+margin, n_hi)
     provider = phoenix_provider or PhoenixSpectrumProvider.from_config(cfg, config_path=config_path)
@@ -245,6 +249,14 @@ def make_native_viola_observation(schedule, rv_star, rv_planet, transit_weight,
     fnu0 = FNU0_VEGA[band]
     reference = C/(center*1e-9)**2 * fnu0*10**(-0.4*magnitude)*1e-6
     star_shape *= reference/np.interp(center, star.wavelength_nm, star_shape)
+    # Apply stellar rotation ONCE, in the stellar rest frame, before Doppler
+    # shifting and before multiplying planet/telluric transmission. Never
+    # convolve the star separately with the instrument LSF here.
+    if vsini > 0:
+        star_wave, star_shape = broaden_spectrum(
+            star.wavelength_nm, star_shape, resolution=None, vsini_kms=vsini)
+    else:
+        star_wave = star.wavelength_nm
     # PWV is sampled once per exposure and used for the SkyCalc background.
     # The external HDF5 library was generated with its own atmospheric profile;
     # PWV (mm) is NOT interchangeable with RH (%).
@@ -275,7 +287,7 @@ def make_native_viola_observation(schedule, rv_star, rv_planet, transit_weight,
     # Only samples within the instrumental LSF footprint contribute to the
     # delivered spectrum. The 5 nm high-grid padding is for the star/tellurics,
     # not a requirement for the planetary FITS.
-    kernel_nm = 6.*grid[-1]/300000.
+    kernel_nm = 6.*grid[-1]/resolution
     required_low = min((grid[0]-kernel_nm)/(1.+v/299792.458) for v in rv_planet)
     required_high = max((grid[-1]+kernel_nm)/(1.+v/299792.458) for v in rv_planet)
     if pw[0] > required_low or pw[-1] < required_high:
@@ -294,15 +306,15 @@ def make_native_viola_observation(schedule, rv_star, rv_planet, transit_weight,
     for i in range(n_exp):
         rest_star = high/(1.+rv_star[i]/299792.458)
         rest_planet = high/(1.+rv_planet[i]/299792.458)
-        if rest_star[0] < star.wavelength_nm[0] or rest_star[-1] > star.wavelength_nm[-1]:
+        if rest_star[0] < star_wave[0] or rest_star[-1] > star_wave[-1]:
             raise ValueError('PHOENIX RV shifted beyond model coverage')
-        stellar_high = np.interp(rest_star, star.wavelength_nm, star_shape)
+        stellar_high = np.interp(rest_star, star_wave, star_shape)
         planet_high = 1.+weight[i]*(np.interp(rest_planet,pw,pf,left=1.,right=1.)-1.)
         # Convolve the *combined* star x planet x atmosphere once.
         flux_star_high = stellar_high*transmission[i]
         flux_model_high = flux_star_high*planet_high
-        star_wave, star_blurred = broaden_spectrum(high,flux_star_high,resolution=300000.)
-        model_wave, model_blurred = broaden_spectrum(high,flux_model_high,resolution=300000.)
+        star_wave, star_blurred = broaden_spectrum(high,flux_star_high,resolution=resolution)
+        model_wave, model_blurred = broaden_spectrum(high,flux_model_high,resolution=resolution)
         # broaden_spectrum resamples to a log-wavelength grid. Use its returned
         # wavelength axis, never the original `high` axis: the lengths can differ.
         star_grid = np.interp(grid, star_wave, star_blurred)
@@ -340,7 +352,7 @@ def make_native_viola_observation(schedule, rv_star, rv_planet, transit_weight,
                            data['model_flux_0.fits'], pw, pf, weight)
     metadata={'backend':'VIOLA_NATIVE_PHOENIX_HDF5_ETC_V0.5', 'instrument':instrument,
               'telescope_diameter_m':8.0,
-              'resolving_power':300000,'magnitude':magnitude,'magnitude_system':'Vega',
+              'resolving_power':resolution,'stellar_vsini_kms':vsini,'magnitude':magnitude,'magnitude_system':'Vega',
               'sky_source':sky_source,
               'pwv_model':'correlated Gaussian PWV (mm), interpolated external HDF5 telluric grid',
               'pwv_calibration_source':'external_hdf5_grid_metadata',
