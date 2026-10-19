@@ -4,10 +4,10 @@ Run from project root after exporting the existing planetary FITS:
   python examples/run_independent_crires.py data/TOI-1842_b/config --snr 100
 
 By default, retrieve a PHOENIX stellar spectrum using the existing provider.
-VIOLA_J/H/K use the separate native PHOENIX + TelFit + ETC-noise backend.
+VIOLA_J/H/K use the native PHOENIX + HDF5 tellurics + ETC-noise backend.
 An optional --stellar-npz path can override this with wavelength_nm and flux
 arrays on the same AIR wavelength convention as the CRIRES_K order grid.
-Tellurics use optional TelFit, evaluated at every exposure altitude.
+Tellurics use optional external HDF5 grids interpolated for each exposure.
 """
 from __future__ import annotations
 
@@ -145,12 +145,12 @@ def run(config_path, stellar_npz, *, output=None, snr=None, seed=42, overwrite=F
     save_schedule(schedule, diagnostic)
     conditions = observing_conditions(
         schedule,
-        humidity_percent=cfg.get_float('telfit_humidity_percent', 50.0),
-        humidity_sigma_percent=cfg.get_float('telfit_humidity_sigma_percent', 0.0),
-        humidity_timescale_minutes=cfg.get_float('telfit_humidity_timescale_minutes', 30.0),
-        pressure_hpa=cfg.get_float('telfit_pressure_hpa', 600.0),
-        temperature_k=cfg.get_float('telfit_temperature_k', 273.0),
-        seed=cfg.get_int('telfit_seed', seed),
+        humidity_percent=cfg.get_float('observing_humidity_percent', 50.0),
+        humidity_sigma_percent=cfg.get_float('observing_humidity_sigma_percent', 0.0),
+        humidity_timescale_minutes=cfg.get_float('observing_humidity_timescale_minutes', 30.0),
+        pressure_hpa=cfg.get_float('observing_pressure_hpa', 600.0),
+        temperature_k=cfg.get_float('observing_temperature_k', 273.0),
+        seed=cfg.get_int('observing_conditions_seed', seed),
     )
     from exoatmosim.observing.conditions import sample_pwv
     pwv = sample_pwv(schedule, mean_mm=cfg.get_float('pwv',2.5),
@@ -290,7 +290,7 @@ def run(config_path, stellar_npz, *, output=None, snr=None, seed=42, overwrite=F
     extra = {}
     if cfg.get_bool('tellurics', False):
         from exoatmosim.observing.telluric_grid import grid_transmission, resolve_grid_file
-        from exoatmosim.observing.tellurics import plot_tellurics
+        from exoatmosim.observing.telluric_utils import plot_tellurics
         # Evaluate optical-depth interpolation at the instrument's native air-nm
         # sample wavelengths; no coarse 2000-point telluric sampling.
         grid = np.unique(np.concatenate(orders))
