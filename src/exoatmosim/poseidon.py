@@ -204,8 +204,9 @@ class TransmissionSpectrum:
         """Deprecated compatibility alias; values are transmission (1 - raw POSEIDON output)."""
         return self.transmission
 
-    def plot(self, path: str | Path) -> Path:
-        """Plot transmission without saving numerical POSEIDON products."""
+    def plot(self, path: str | Path, *, title: str = 'POSEIDON transmission spectrum',
+             ylabel: str = 'Transmission (1 − POSEIDON spectrum)') -> Path:
+        """Plot stored spectrum values, with optional template-specific labels."""
         import matplotlib
         matplotlib.use('Agg')
         import matplotlib.pyplot as plt
@@ -214,6 +215,8 @@ class TransmissionSpectrum:
         fig, ax = plt.subplots(figsize=(11, 4))
         ax.plot(self.wavelength_um, self.transmission, lw=0.7)
         ax.set_xlabel('Wavelength (µm)')
+        ax.set_ylabel(ylabel)
+        ax.set_title(title)
         ax.set_ylabel('Transmission T')
         ax.set_title('POSEIDON transmission spectrum')
         fig.tight_layout()

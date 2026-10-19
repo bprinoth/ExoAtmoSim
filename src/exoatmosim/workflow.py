@@ -99,6 +99,60 @@ def calculate_spectrum(config: str | Path, *, backend: str = 'poseidon',
     return write_spectrum_fits(spectrum, model_path, overwrite=overwrite, config_path=path)
 
 
+def calculate_template(config: str | Path, *, species: str, seed: int = 42,
+                       overwrite: bool = False) -> Path:
+    """Compute a species-only line-opacity transmission template using POSEIDON.
+
+    Preserve the calculated T-P profile, target VMR, and background bulk
+    species; remove other trace absorbers without renormalizing abundances.
+    Uses the same wavelength grid and FITS schema as `spectrum`, but
+    stores POSEIDON transit depth T rather than the usual 1 - T.
+    """
+    from .poseidon import TransmissionRun, TransmissionSpectrum
+    from .profiles import AbundanceProfile
+    from .spectrum_fits import write_spectrum_fits
+
+    species = species.strip()
+    if not species or '/' in species or chr(92) in species or species in ('.', '..'):
+        raise ValueError('Provide a valid single species name (e.g. O3)')
+    path, run_dir, _ = _locations(config, seed)
+    destination = run_dir / 'templates' / f'{species}.fits'
+    if destination.exists() and not overwrite:
+        raise FileExistsError(f'Existing species template: {destination}; use --overwrite')
+    run = TransmissionRun.from_config(path)
+    ratios = run.abundances.mixing_ratios
+    if species not in ratios:
+        raise ValueError(f'Species {species!r} is not in the atmospheric abundances; '
+                         f'available: {", ".join(sorted(ratios))}')
+    bulk = run.abundances.bulk_species
+    if species in bulk:
+        raise ValueError(f'{species!r} is a bulk species; choose a trace absorber')
+    # Do not invent a bulk composition or renormalize: the purpose is to
+    # isolate the selected opacity at the original atmospheric structure.
+    selected = {name: values for name, values in ratios.items()
+                if name in bulk or name == species}
+    template_abundances = AbundanceProfile(
+        run.abundances.pressure_bar, selected, bulk)
+    _snapshot(path, run_dir, overwrite=overwrite)
+    spectrum = run.model.compute_transmission(
+        name=run.name, config=run.config, atmosphere=run.atmosphere,
+        composition=template_abundances.as_poseidon_composition(),
+        bulk_species=bulk)
+    transmission = np.asarray(spectrum.transmission, float)
+    if not np.isfinite(transmission).all():
+        raise ValueError('Species template transmission must be finite')
+    # The POSEIDON adapter returns 1 - T for the standard planet model.
+    # Templates require the un-inverted transit depth T instead.
+    transit_depth = TransmissionSpectrum(spectrum.wavelength_um, 1.0 - transmission)
+    result = write_spectrum_fits(transit_depth, destination, overwrite=overwrite,
+                                 config_path=path)
+    with publication_style():
+        transit_depth.plot(destination.with_suffix('.png'),
+                           title=f'{species} template transit depth',
+                           ylabel='Transit depth (T)')
+    return result
+
+
 def simulate_observation(config: str | Path, *, seed: int = 42, snr: float | None = None,
                          overwrite: bool = False, stellar_npz: str | Path | None = None):
     """Synthesize noisy orders from an EXISTING seed-scoped planetary FITS.
