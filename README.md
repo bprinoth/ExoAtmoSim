@@ -263,3 +263,31 @@ ETC-inspired detector variance. Its atmosphere is drawn from the same HDF5
 library, not from the external VIOLA ETC. VIOLA sky emission is omitted, so
 its present noise predictions are optimistic. The native model and numerical
 limitations are documented in `VIOLA_QUICKSTART.md`.
+
+### Single-species cross-correlation templates
+
+Once a planet configuration is available (optionally after running
+`exoatmosim atmosphere /path/to/config`), generate a single-absorber
+high-resolution transmission template:
+
+```bash
+exoatmosim template /path/to/config --species O3
+exoatmosim template /path/to/config --species H2O --seed 42
+```
+
+The command reconstructs the same T–P and chemistry inputs as `atmosphere`
+from the configuration, **retains the selected species' original abundance
+profile and the configured bulk species**, and excludes other trace
+absorbers from the POSEIDON calculation. It does not currently read a
+persisted atmosphere cache or remove bulk continuum opacity. The template is
+saved as `simulations/<INSTRUMENT>/seed_0042/templates/O3.fits`, using
+the same 3-HDU air-wavelength/transmission FITS convention as `spectrum`.
+It does not overwrite the normal full-model planetary FITS. Use
+`--overwrite` to replace a previously generated template.
+
+These are single-absorber **transmission spectra**, not continuum-subtracted,
+normalized or high-pass-filtered CCF vectors. Downstream cross-correlation
+analysis should apply the same instrumental processing, filtering and
+normalization to model and observed data. For physical consistency, note
+that the model still contains bulk-atmosphere opacity and does not recompute
+the hydrostatic structure with a different chemistry.
