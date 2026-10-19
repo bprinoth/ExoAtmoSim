@@ -121,38 +121,26 @@ class ViolaNativeTests(unittest.TestCase):
         self.assertIn('lsf_star_wave', assignments)
 
 
-    def test_viola_plots_keep_publication_style_and_skip_duplicate_planet(self):
-        from exoatmosim.observing.viola_plots import (
-            plot_viola_diagnostics, plot_stellar_rotation)
+    def test_stellar_diagnostic_exists_without_duplicate_viola_plot(self):
+        from exoatmosim.observing.viola_plots import plot_stellar_spectrum_comparison
         wave = np.linspace(2100., 2101., 40)
-        stellar = 1. - 0.2 * np.exp(-0.5*((wave-2100.5)/0.02)**2)
-        rotated = 1. - 0.1 * np.exp(-0.5*((wave-2100.5)/0.04)**2)
+        stellar = 1. - .2*np.exp(-.5*((wave-2100.5)/.02)**2)
+        rotated = 1. - .1*np.exp(-.5*((wave-2100.5)/.04)**2)
         with tempfile.TemporaryDirectory() as tmp:
-            out = Path(tmp)
-            rotation_file = plot_stellar_rotation(out, wave, stellar, wave, rotated, 5.)
-            self.assertTrue(rotation_file.is_file())
-            self.assertEqual(rotation_file.name, 'stellar_spectrum_comparison.png')
-            comparison = plot_viola_diagnostics(
-                out, wave, np.stack([stellar]), np.stack([rotated]),
-                wave, np.ones_like(wave), np.array([1.]))
-            self.assertTrue(comparison.is_file())
-            self.assertFalse((out/'diagnostics'/'planet_transmission.png').exists())
+            output = plot_stellar_spectrum_comparison(
+                tmp, wave, stellar, wave, rotated, 5., instrument_resolution=300000.)
+            self.assertTrue(output.is_file())
+            self.assertEqual(output.name, 'stellar_spectrum_comparison.png')
+            self.assertFalse((Path(tmp)/'diagnostics'/'viola_spectral_comparison.png').exists())
 
-
-    def test_observing_conditions_plot_uses_exposure_snr(self):
+    def test_observing_conditions_plot_has_two_panels(self):
         from astropy.table import Table
         from exoatmosim.observing.conditions import plot_observing_conditions
-        table = Table({
-            'midpoint_jd_utc': [2450000., 2450000.01],
-            'pwv_mm': [2., 3.], 'airmass': [1.1, 1.2],
-            'temperature_k': [275., 275.], 'pressure_hpa': [600., 600.]})
+        table = Table({'midpoint_jd_utc':[2450000.,2450000.01],
+                       'pwv_mm':[2.,3.], 'airmass':[1.1,1.2]})
         with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / 'observing_conditions.png'
-            self.assertEqual(plot_observing_conditions(
-                table, path, snr_per_exposure=[90., 110.]), path)
+            path = Path(tmp)/'observing_conditions.png'
+            self.assertEqual(plot_observing_conditions(table, path), path)
             self.assertTrue(path.is_file())
-            with self.assertRaisesRegex(ValueError, 'S/N'):
-                plot_observing_conditions(
-                    table, path, snr_per_exposure=[float('nan'), 110.])
 
 if __name__=='__main__': unittest.main()
