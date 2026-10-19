@@ -138,4 +138,21 @@ class ViolaNativeTests(unittest.TestCase):
             self.assertTrue(comparison.is_file())
             self.assertFalse((out/'diagnostics'/'planet_transmission.png').exists())
 
+
+    def test_observing_conditions_plot_uses_exposure_snr(self):
+        from astropy.table import Table
+        from exoatmosim.observing.conditions import plot_observing_conditions
+        table = Table({
+            'midpoint_jd_utc': [2450000., 2450000.01],
+            'pwv_mm': [2., 3.], 'airmass': [1.1, 1.2],
+            'temperature_k': [275., 275.], 'pressure_hpa': [600., 600.]})
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'observing_conditions.png'
+            self.assertEqual(plot_observing_conditions(
+                table, path, snr_per_exposure=[90., 110.]), path)
+            self.assertTrue(path.is_file())
+            with self.assertRaisesRegex(ValueError, 'S/N'):
+                plot_observing_conditions(
+                    table, path, snr_per_exposure=[float('nan'), 110.])
+
 if __name__=='__main__': unittest.main()
