@@ -313,12 +313,12 @@ def make_native_viola_observation(schedule, rv_star, rv_planet, transit_weight,
         # Convolve the *combined* star x planet x atmosphere once.
         flux_star_high = stellar_high*transmission[i]
         flux_model_high = flux_star_high*planet_high
-        star_wave, star_blurred = broaden_spectrum(high,flux_star_high,resolution=resolution)
-        model_wave, model_blurred = broaden_spectrum(high,flux_model_high,resolution=resolution)
+        lsf_star_wave, star_blurred = broaden_spectrum(high,flux_star_high,resolution=resolution)
+        lsf_model_wave, model_blurred = broaden_spectrum(high,flux_model_high,resolution=resolution)
         # broaden_spectrum resamples to a log-wavelength grid. Use its returned
         # wavelength axis, never the original `high` axis: the lengths can differ.
-        star_grid = np.interp(grid, star_wave, star_blurred)
-        model_grid = np.interp(grid, model_wave, model_blurred)
+        star_grid = np.interp(grid, lsf_star_wave, star_blurred)
+        model_grid = np.interp(grid, lsf_model_wave, model_blurred)
         star_e, var, _ = electron_budget(grid,star_grid,sky_by_exp[i],cfg,
                                          exposure_s=cfg.get_float('exposure_time'))
         model_e, _, _ = electron_budget(grid,model_grid,sky_by_exp[i],cfg,
