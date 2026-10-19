@@ -249,6 +249,7 @@ def make_native_viola_observation(schedule, rv_star, rv_planet, transit_weight,
     fnu0 = FNU0_VEGA[band]
     reference = C/(center*1e-9)**2 * fnu0*10**(-0.4*magnitude)*1e-6
     star_shape *= reference/np.interp(center, star.wavelength_nm, star_shape)
+    original_stellar_flux = star_shape.copy()
     # Apply stellar rotation ONCE, in the stellar rest frame, before Doppler
     # shifting and before multiplying planet/telluric transmission. Never
     # convolve the star separately with the instrument LSF here.
@@ -257,6 +258,9 @@ def make_native_viola_observation(schedule, rv_star, rv_planet, transit_weight,
             star.wavelength_nm, star_shape, resolution=None, vsini_kms=vsini)
     else:
         star_wave = star.wavelength_nm
+    from .viola_plots import plot_stellar_rotation
+    plot_stellar_rotation(output_dir, star.wavelength_nm, original_stellar_flux,
+                          star_wave, star_shape, vsini)
     # PWV is sampled once per exposure and used for the SkyCalc background.
     # The external HDF5 library was generated with its own atmospheric profile;
     # PWV (mm) is NOT interchangeable with RH (%).
