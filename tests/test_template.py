@@ -45,10 +45,13 @@ class TemplateTests(unittest.TestCase):
                 return destination
 
             with patch('exoatmosim.poseidon.TransmissionRun.from_config', return_value=run), \
-                 patch('exoatmosim.spectrum_fits.write_spectrum_fits', side_effect=capture_fits):
+                 patch('exoatmosim.spectrum_fits.write_spectrum_fits', side_effect=capture_fits), \
+                 patch('exoatmosim.poseidon.TransmissionSpectrum.plot', return_value=Path('O3.png')) as plot:
                 result = workflow.calculate_template(config, species='O3')
                 self.assertEqual(result.name, 'O3.fits')
                 np.testing.assert_allclose(saved['spectrum'].transmission, [0.01, 0.02])
+                self.assertEqual(plot.call_args.args[0].name, 'O3.png')
+                self.assertEqual(plot.call_args.kwargs['ylabel'], 'Transit depth (T)')
                 self.assertEqual(result.parent.name, 'templates')
                 composition = recorded['composition'].mixing_ratios
                 self.assertEqual(set(composition), {'H2', 'He', 'O3'})
