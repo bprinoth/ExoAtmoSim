@@ -113,6 +113,14 @@ def run(config_path, stellar_npz, *, output=None, snr=None, seed=42, overwrite=F
     config_path = Path(config_path).resolve()
     cfg = Config.from_file(config_path)
     instrument = str(cfg.get('instrument', 'CRIRES_K')).upper()
+    # Validate even when a backend does not immediately use these parameters.
+    # In particular, float('nan') is accepted by Config.get_float().
+    vsini = cfg.get_float('vsini', 0.)
+    resolution = cfg.get_float('resolution')
+    if not np.isfinite(vsini) or vsini < 0:
+        raise ValueError('Stellar vsini must be finite and nonnegative')
+    if not np.isfinite(resolution) or resolution <= 0:
+        raise ValueError('Instrumental resolution must be positive and finite')
     if instrument not in ('CRIRES_K', 'ANDES', 'ANDES_K', 'IGRINS_HK', 'IGRINS2_HK', 'SPIROU', 'ESPRESSO', 'VIOLA_K', 'VIOLA_H', 'VIOLA_J'):
         raise ValueError(f'Unsupported instrument: {instrument}')
     if output is not None:
