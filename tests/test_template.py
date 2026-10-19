@@ -30,6 +30,7 @@ class TemplateTests(unittest.TestCase):
                 'H2O': np.array([1e-5, 1e-5]),
             }, ('H2', 'He'))
             recorded = {}
+            saved = {}
 
             def compute_transmission(**kwargs):
                 recorded.update(kwargs)
@@ -39,11 +40,15 @@ class TemplateTests(unittest.TestCase):
             run = SimpleNamespace(abundances=abundance, model=SimpleNamespace(
                 compute_transmission=compute_transmission), name='planet',
                 atmosphere=object(), config=object())
+            def capture_fits(spectrum, destination, **kwargs):
+                saved['spectrum'] = spectrum
+                return destination
+
             with patch('exoatmosim.poseidon.TransmissionRun.from_config', return_value=run), \
-                 patch('exoatmosim.spectrum_fits.write_spectrum_fits',
-                       side_effect=lambda spectrum, destination, **kwargs: destination):
+                 patch('exoatmosim.spectrum_fits.write_spectrum_fits', side_effect=capture_fits):
                 result = workflow.calculate_template(config, species='O3')
                 self.assertEqual(result.name, 'O3.fits')
+                np.testing.assert_allclose(saved['spectrum'].transmission, [0.01, 0.02])
                 self.assertEqual(result.parent.name, 'templates')
                 composition = recorded['composition'].mixing_ratios
                 self.assertEqual(set(composition), {'H2', 'He', 'O3'})
