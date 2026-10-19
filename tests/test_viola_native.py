@@ -71,7 +71,7 @@ class ViolaNativeTests(unittest.TestCase):
         from exoatmosim.independent_crires import run
         with tempfile.TemporaryDirectory() as temp:
             config = Path(temp) / 'config'
-            config.write_text('instrument VIOLA_K\\nresolution nan\\nvsini 4\\n')
+            config.write_text('instrument VIOLA_K\nresolution nan\nvsini 4\n')
             with self.assertRaisesRegex(ValueError, 'resolution.*finite'):
                 run(config, None)
 
