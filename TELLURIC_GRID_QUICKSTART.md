@@ -24,7 +24,7 @@ The grid must cover the entire instrument wavelength range, **all sampled PWV va
 
 Run `exoatmosim spectrum data/WASP-189_b/config --seed 42 --overwrite` if no matching planetary FITS exists, then `exoatmosim observe data/WASP-189_b/config --seed 42 --overwrite`. Inspect `observing_conditions.ecsv` (including `pwv_mm`) and `diagnostics/telluric_transmission.png`.
 
-**Scientific cautions:** Builder `allow_approx_pwv` uses an *uncalibrated* water-vapour mapping. This backend interpolates the stored spectra in optical depth. The existing constant-S/N observational noise model has not become a physical instrument ETC. The high-resolution telluric signal is evaluated at instrument sample centers; accurate convolution of stellar×telluric high-resolution products and transmission interpolation require further validation. There is no automatic download, no silent fallback to direct TelFit and no extrapolation. Existing observations with `tellurics False` are unaffected.
+**Scientific cautions:** Builder `allow_approx_pwv` uses an *uncalibrated* water-vapour mapping. This backend interpolates the stored spectra in optical depth. The existing constant-S/N observational noise model has not become a physical instrument ETC. The high-resolution telluric signal is evaluated at instrument sample centers; accurate convolution of stellar×telluric high-resolution products and transmission interpolation require further validation. There is no automatic download, no fallback to a live telluric calculation and no extrapolation. Existing observations with `tellurics False` are unaffected.
 
 
 ## Grid provenance and supported sites
@@ -39,7 +39,7 @@ stellar pipeline, and omits sky-emission noise for now. Its sensitivity
 estimates are therefore experimental, not validated VIOLA performance claims.
 
 For `tellurics True`, ExoAtmoSim reads **externally generated, high-resolution
-TelFit transmission grids** from HDF5 files; it does not call TelFit during
+precomputed atmospheric transmission grids** from HDF5 files; it does not invoke a radiative-transfer model during
 individual observation exposures. The observing schedule supplies each exposure's
 airmass, while a seeded, time-correlated PWV series (mm) supplies the water-vapour
 coordinate. Transmission is interpolated **in optical depth** across neighboring
@@ -64,5 +64,5 @@ LBLRTM run has encountered failures. Install only verified grid files, kept
 outside GitHub, and configure their directory in the private
 `config/site_paths.conf` as `telluric_grid_dir /absolute/path/to/grids`.
 See [TELLURIC_GRID_QUICKSTART.md](TELLURIC_GRID_QUICKSTART.md) for setup.
-The builder's provisional conversion of PWV to TelFit relative humidity
+The builder's provisional conversion of PWV to surface relative humidity
 requires scientific validation.

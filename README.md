@@ -135,7 +135,7 @@ stellar models shifted per exposure, the planet's separate Doppler shift, an
 The **external VIOLA ETC is not executed**. VIOLA sky emission is **not modeled**
 in this release: its S/N is an optimistic upper limit.
 
-With `tellurics True`, the same externally stored TelFit HDF5 transmission
+With `tellurics True`, the same externally stored precomputed HDF5 transmission
 grids are used for VIOLA and the other supported instruments. The atmospheric
 transmission is selected at each exposure's airmass and sampled PWV, with
 bilinear interpolation in optical depth. It is not derived from VIOLA's
@@ -187,7 +187,7 @@ significance as validated**. The native wavelength grids are computational
 segments, not measured echelle order boundaries. The ETC 2x2 detector-pixel
 noise convention is retained. Magnitudes anchor PHOENIX at a single reference
 wavelength (not full synthetic-filter photometry). Atmospheric transmission
-uses TelFit on a finer internal grid, and combined star × planet × tellurics
+uses a precomputed HDF5 telluric transmission grid sampled on a finer internal grid, and combined star × planet × tellurics
 are convolved to R=300,000 before sampling. No extra ETC stellar Doppler or
 telluric multiplication is performed. Validation of sky emission, TelFit
 wavelength convention, photometry and detector covariance remains necessary.
@@ -202,7 +202,7 @@ ETC default factors), `viola_nx`/`viola_ny` (2 each),
 
 ## Experimental external telluric HDF5 grids
 
-See [TELLURIC_GRID_QUICKSTART.md](TELLURIC_GRID_QUICKSTART.md). Current planet configs use `tellurics`, `pwv` and `pwv_sigma`. No direct TelFit invocation in the grid-mode observation path; HDF5 grids live outside the repository.
+See [TELLURIC_GRID_QUICKSTART.md](TELLURIC_GRID_QUICKSTART.md). Current planet configs use `tellurics`, `pwv` and `pwv_sigma`. No live TelFit dependency or direct-model observation backend; HDF5 grids live outside the repository.
 
 
 ### VIOLA ETC provenance and telluric sites
@@ -217,7 +217,7 @@ stellar pipeline, and omits sky-emission noise for now. Its sensitivity
 estimates are therefore experimental, not validated VIOLA performance claims.
 
 For `tellurics True`, ExoAtmoSim reads **externally generated, high-resolution
-TelFit transmission grids** from HDF5 files; it does not call TelFit during
+precomputed atmospheric transmission grids** from HDF5 files; it does not invoke a radiative-transfer model during
 individual observation exposures. The observing schedule supplies each exposure's
 airmass, while a seeded, time-correlated PWV series (mm) supplies the water-vapour
 coordinate. Transmission is interpolated **in optical depth** across neighboring
@@ -242,7 +242,7 @@ LBLRTM run has encountered failures. Install only verified grid files, kept
 outside GitHub, and configure their directory in the private
 `config/site_paths.conf` as `telluric_grid_dir /absolute/path/to/grids`.
 See [TELLURIC_GRID_QUICKSTART.md](TELLURIC_GRID_QUICKSTART.md) for setup.
-The builder's provisional conversion of PWV to TelFit relative humidity
+The builder's provisional conversion of PWV to surface relative humidity
 requires scientific validation.
 
 

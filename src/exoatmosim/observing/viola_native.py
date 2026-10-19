@@ -18,7 +18,7 @@ from ..instruments import load_instrument_orders
 from ..objects import Star
 from ..stellar_spectra import PhoenixSpectrumProvider
 from .spectral_processing import broaden_spectrum
-from .tellurics import vacuum_to_air_nm
+from .telluric_utils import vacuum_to_air_nm
 
 C = 299792458.0
 H = 6.62607015e-34
@@ -199,7 +199,7 @@ def make_native_viola_observation(schedule, rv_star, rv_planet, transit_weight,
                                   cfg, config_path, planet_wave_nm, planet_factor,
                                   output_dir, *, seed=42, overwrite=False,
                                   phoenix_provider=None, telluric_provider=None):
-    """Generate native-grid PHOENIX+TelFit VIOLA spectra and ETC electron noise."""
+    """Generate native-grid PHOENIX+HDF5 telluric VIOLA spectra and ETC electron noise."""
     from astropy.io import fits
     instrument = str(cfg.get('instrument')).upper()
     if instrument not in ('VIOLA_J', 'VIOLA_H', 'VIOLA_K'):
@@ -246,7 +246,7 @@ def make_native_viola_observation(schedule, rv_star, rv_planet, transit_weight,
     reference = C/(center*1e-9)**2 * fnu0*10**(-0.4*magnitude)*1e-6
     star_shape *= reference/np.interp(center, star.wavelength_nm, star_shape)
     # PWV is sampled once per exposure and used for the SkyCalc background.
-    # TelFit currently uses an independent relative-humidity time series;
+    # The external HDF5 library was generated with its own atmospheric profile;
     # PWV (mm) is NOT interchangeable with RH (%).
     from .conditions import sample_pwv
     pwv_per_exp = sample_pwv(schedule,mean_mm=cfg.get_float('pwv',2.5),
@@ -343,7 +343,7 @@ def make_native_viola_observation(schedule, rv_star, rv_planet, transit_weight,
               'resolving_power':300000,'magnitude':magnitude,'magnitude_system':'Vega',
               'sky_source':sky_source,
               'pwv_model':'correlated Gaussian PWV (mm), interpolated external HDF5 telluric grid',
-              'pwv_is_linked_to_telfit_humidity':False,
+              'pwv_calibration_source':'external_hdf5_grid_metadata',
               'pwv_note':'External HDF5 grids may use an approximate PWV-to-RH mapping; scientific calibration pending',
               'sky_conditions_csv':'viola_sky_conditions.csv',
               'tellurics':cfg.get_bool('tellurics',False),

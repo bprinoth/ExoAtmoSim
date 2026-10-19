@@ -1,7 +1,7 @@
 """Reproducible exposure-level atmospheric conditions, stored as Astropy ECSV.
 
 The first five columns of ``obs_times`` remain unchanged. This table is the
-source of truth for TelFit atmospheric inputs, and is also produced when
+diagnostic record of observing conditions, and is also produced when
 ``tellurics False`` for a fully reproducible observing plan.
 """
 from __future__ import annotations

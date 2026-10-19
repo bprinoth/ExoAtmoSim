@@ -1,4 +1,4 @@
-"""Regression checks for self-describing conditions and per-exposure TelFit calls."""
+"""Regression checks for self-describing observing conditions."""
 import tempfile
 import unittest
 from pathlib import Path
@@ -7,7 +7,6 @@ import numpy as np
 from exoatmosim.observing.conditions import (observing_conditions, write_observing_conditions,
                                              read_observing_conditions)
 from exoatmosim.observing.obs_times import write_observation_times
-from exoatmosim.observing.tellurics import telfit_transmission, vacuum_to_air_nm
 
 
 def schedule(n=8):
@@ -46,35 +45,9 @@ class ConditionsTests(unittest.TestCase):
             self.assertEqual(len(lines), 103)
             self.assertTrue(all(len(line.split()) == 5 for line in lines))
 
-    def test_telfit_receives_distinct_states_and_clips_small_undershoot(self):
-        s = schedule(3)
-        conditions = observing_conditions(s, humidity_percent=50, humidity_sigma_percent=10, seed=4)
-        calls = []
-        class Modeler:
-            def MakeModel(self, **kwargs):
-                calls.append(kwargs)
-                wvac = np.linspace(1e7/kwargs['highfreq'], 1e7/kwargs['lowfreq'], 200)
-                transmission = np.ones(200) * .9
-                # Put negative samples INSIDE the requested grid, not only
-                # in TelFit's padded boundary (which interpolation discards).
-                transmission[70:130] = -1.8e-7
-                return SimpleNamespace(x=vacuum_to_air_nm(wvac), y=transmission)
-        with self.assertWarns(RuntimeWarning):
-            w, spectra = telfit_transmission(s, np.linspace(1925, 1935, 100),
-                                             conditions=conditions, modeler_factory=Modeler)
-        self.assertEqual(len(calls), 3)
-        np.testing.assert_allclose([c['humidity'] for c in calls], conditions['humidity_percent'])
-        np.testing.assert_allclose([c['angle'] for c in calls], conditions['zenith_angle_deg'])
-        np.testing.assert_allclose([c['pressure'] for c in calls], conditions['pressure_hpa'])
-        self.assertEqual(spectra[0, len(w)//2], 0.)
-        self.assertAlmostEqual(w[0], 1925.0)
-        self.assertAlmostEqual(w[-1], 1935.0)
-
     def test_bad_alignment_rejected(self):
         s = schedule(3)
         table = observing_conditions(s)
-        with self.assertRaisesRegex(ValueError, 'one row'):
-            telfit_transmission(s, [1925, 1935], conditions=table[:2], modeler_factory=lambda: None)
         table['midpoint_jd_utc'][0] += 1
         with tempfile.TemporaryDirectory() as d:
             path = write_observing_conditions(Path(d) / 'conditions.ecsv', table)
