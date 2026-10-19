@@ -65,7 +65,7 @@ def plot_stellar_rotation(output_dir, original_wave_nm, original_flux,
             not all(np.isfinite(a).all() for a in
                     (original_wave_nm, original_flux, rotated_wave_nm, rotated_flux))):
         raise ValueError('Invalid stellar rotation diagnostic arrays')
-    out = Path(output_dir) / 'diagnostics' / 'stellar_rotation_comparison.png'
+    out = Path(output_dir) / 'diagnostics' / 'stellar_spectrum_comparison.png'
     out.parent.mkdir(parents=True, exist_ok=True)
     with publication_style():
         fig, ax = plt.subplots(figsize=(12, 5))
