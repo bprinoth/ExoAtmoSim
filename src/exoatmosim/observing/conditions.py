@@ -116,7 +116,7 @@ def read_observing_conditions(path, schedule=None):
     return table
 
 
-def plot_observing_conditions(table, path):
+def plot_observing_conditions(table, path, *, snr_per_exposure):
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
@@ -124,6 +124,9 @@ def plot_observing_conditions(table, path):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     t = (np.asarray(table['midpoint_jd_utc'],float) - float(table['midpoint_jd_utc'][0])) * 24
+    snr = np.asarray(snr_per_exposure, dtype=float)
+    if snr.shape != (len(table),) or not np.isfinite(snr).all() or np.any(snr < 0):
+        raise ValueError('S/N must be finite, nonnegative and have one value per exposure')
     with publication_style():
         fig, axes = plt.subplots(3, 1, figsize=(10, 8), sharex=True, constrained_layout=True)
         if 'pwv_mm' in table.colnames:
@@ -134,11 +137,9 @@ def plot_observing_conditions(table, path):
             axes[0].set_ylabel('Relative humidity [%]')
         axes[1].plot(t, table['airmass'])
         axes[1].set_ylabel('Airmass')
-        axes[2].plot(t, table['temperature_k'], label='Temperature [K]')
-        ax2 = axes[2].twinx()
-        ax2.plot(t, table['pressure_hpa'], linestyle='--', label='Pressure [hPa]')
-        axes[2].set(xlabel='Hours since first exposure', ylabel='Temperature [K]')
-        ax2.set_ylabel('Pressure [hPa]')
+        axes[2].plot(t, snr)
+        axes[2].set(xlabel='Hours since first exposure',
+                    ylabel='S/N per resolution element')
         fig.savefig(path, dpi=180)
         plt.close(fig)
     return path
