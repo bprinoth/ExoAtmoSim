@@ -293,3 +293,15 @@ analysis should apply the same instrumental processing, filtering and
 normalization to model and observed data. For physical consistency, note
 that the model still contains bulk-atmosphere opacity and does not recompute
 the hydrostatic structure with a different chemistry.
+
+### Diagnostic font resource
+
+Diagnostics use the shared `publication_style()` settings. To bundle the
+Montserrat font for reproducible plots, include the upstream SIL OFL 1.1
+`Montserrat-Regular.ttf` and its corresponding `OFL.txt` under
+`src/exoatmosim/resources/fonts/`. The package configuration includes both
+in wheel distributions. If that resource is absent, the current fallback is
+DejaVu Sans; an explicit `EXOATMOSIM_FONT_PATH` or `publication_style(font_path=...)`
+overrides the package default. Upstream font and license:
+https://github.com/google/fonts/tree/main/ofl/montserrat
+
