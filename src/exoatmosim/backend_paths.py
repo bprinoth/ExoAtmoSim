@@ -75,7 +75,8 @@ def configure_poseidon_environment(config: Config) -> dict[str, str]:
     return configured
 
 
-def discover_site_config(explicit: str | Path | None = None) -> Path | None:
+def discover_site_config(explicit: str | Path | None = None, *,
+                         config_path: str | Path | None = None) -> Path | None:
     """Find machine-local backend settings; never load the distributed example as live paths.
 
     Priority: explicit --site-config, EXOATMOSIM_SITE_CONFIG, then
@@ -90,8 +91,15 @@ def discover_site_config(explicit: str | Path | None = None) -> Path | None:
     if env:
         return discover_site_config(env)
     checkout = Path(__file__).resolve().parents[2]
-    for candidate in (Path.cwd() / 'config' / 'site_paths.conf',
-                      checkout / 'config' / 'site_paths.conf'):
+    candidates = [Path.cwd() / 'config' / 'site_paths.conf',
+                  checkout / 'config' / 'site_paths.conf']
+    if config_path is not None:
+        target = Path(config_path).expanduser().resolve()
+        # When `observe` is invoked from another working directory, find the
+        # checkout's private settings alongside the planet's data directory.
+        candidates = [ancestor / 'config' / 'site_paths.conf'
+                      for ancestor in target.parent.parents] + candidates
+    for candidate in candidates:
         if candidate.is_file():
             return candidate.resolve()
     return None

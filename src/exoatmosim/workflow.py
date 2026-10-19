@@ -64,9 +64,9 @@ def calculate_atmosphere(config: str | Path, *, seed: int = 42,
     run = TransmissionRun.from_config(path)
     with publication_style():
         run.atmosphere.plot_tp(diagnostics / 'temperature_pressure.png')
-        run.abundances.plot(diagnostics / 'fastchem_abundances.png',
-                            title='FastChem equilibrium abundances')
-    run.abundances.to_file(diagnostics / 'fastchem_abundances.dat')
+        run.abundances.plot(diagnostics / f'{str(run.config.get("chemistry", "fastchem")).lower()}_abundances.png',
+                            title='Atmospheric abundances')
+    run.abundances.to_file(diagnostics / f'{str(run.config.get("chemistry", "fastchem")).lower()}_abundances.dat')
     return diagnostics
 
 
@@ -99,7 +99,7 @@ def calculate_spectrum(config: str | Path, *, backend: str = 'poseidon',
     return write_spectrum_fits(spectrum, model_path, overwrite=overwrite, config_path=path)
 
 
-def simulate_observation(config: str | Path, *, seed: int = 42, snr: float = 100.,
+def simulate_observation(config: str | Path, *, seed: int = 42, snr: float | None = None,
                          overwrite: bool = False, stellar_npz: str | Path | None = None):
     """Synthesize noisy orders from an EXISTING seed-scoped planetary FITS.
 
@@ -110,13 +110,16 @@ def simulate_observation(config: str | Path, *, seed: int = 42, snr: float = 100
     model_path = run_dir / f'{planet}.fits'
     if not model_path.is_file():
         raise FileNotFoundError(f'Planet model not found: {model_path}; run `exoatmosim spectrum` first')
+    instrument = str(Config.from_file(path).get('instrument', '')).upper()
+    if not instrument.startswith('VIOLA_') and snr is None:
+        snr = 100.0
     return observe_run(path, Path(stellar_npz) if stellar_npz else None, output=run_dir,
                        snr=snr, seed=seed, overwrite=overwrite, model_path=model_path)
 
 
 def simulate(*, planet: str | None = None, config: str | Path | None = None,
              instrument: str = 'CRIRES_K', data_dir: str | Path = 'data',
-             site_config: str | Path | None = None, snr: float = 100., seed: int = 42,
+             site_config: str | Path | None = None, snr: float | None = None, seed: int = 42,
              tellurics: bool | None = None, overwrite: bool = False,
              fresh: bool = False):
     """Run the existing end-to-end validated orchestration.

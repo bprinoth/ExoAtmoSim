@@ -30,7 +30,7 @@ class TestPoseidonBoundary(unittest.TestCase):
                 d = r / directory
                 d.mkdir()
                 (d / name).write_text('test')
-            config = Config.from_mapping({'stellar_type': 'M2.5V'})
+            config = Config.from_mapping({'stellar_type': 'M2.5V', 'Gyr_age': '4.6'})
             pt, chem = select_legacy_profiles(config, r)
             self.assertIn('M3A', pt.name)
             self.assertIn('M3A', chem.name)

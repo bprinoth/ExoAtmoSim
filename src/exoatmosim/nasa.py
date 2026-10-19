@@ -113,7 +113,7 @@ def parameters_from_row(row: Any, *, resolution: int = 300_000,
         'impact': val('pl_imppar'), 'omega': val('pl_orblper'),
         'Rs': val('st_rad'), 'Ms': val('st_mass'), 'logg': val('st_logg'),
         'metallicity': val('st_met'),
-        'stellar_type': val('st_spectype', default='nan'),
+        'stellar_type': str(val('st_spectype', default='nan') or 'nan').strip() or 'nan',
         'Hmag': val('sy_hmag'), 'Kmag': val('sy_kmag'), 'Jmag': val('sy_jmag'),
         'Gyr_age': val('st_age'), 'loggp': loggp,
         'lampoo': val('pl_projobliq'), 'resolution': resolution,
@@ -154,16 +154,9 @@ _WORKFLOW_GROUPS = (
         'rv_plot_extent': '200',
     }),
     ('Observing atmosphere and tellurics', {
-        # These are always written, including when tellurics is disabled.
-        # Humidity sigma is in absolute percentage points, NOT PWV in mm.
         'tellurics': 'False',
-        'telfit_humidity_percent': '50',
-        'telfit_humidity_sigma_percent': '0',
-        'telfit_humidity_timescale_minutes': '30',
-        'telfit_pressure_hpa': '600',
-        'telfit_temperature_k': '273',
-        'telfit_ringing_tolerance': '2e-4',
-        'telfit_seed': '42',
+        'pwv': '2.5',
+        'pwv_sigma': '0.5',
     }),
 )
 
@@ -173,11 +166,11 @@ _SITE_KEYS = frozenset({
     'fastchem_elements_file', 'fastchem_species_file', 'fastchem_condensates_file',
     'poseidon_path', 'poseidon_input_data', 'pysyn_cdbs',
     'instrument_order_file', 'instrument_library_path',
-    'kaltenegger_profiles_dir',
+    'kaltenegger_profiles_dir', 'telluric_grid_dir', 'viola_skycalc_dir',
 })
 
-# Installation paths that must remain in site_paths.conf, not a planet config.
-_SITE_LOCAL_ONLY_KEYS = frozenset({'kaltenegger_profiles_dir'})
+# Local profile path must not be embedded in a planet-specific science config.
+_SITE_LOCAL_ONLY_KEYS = frozenset({'kaltenegger_profiles_dir', 'telluric_grid_dir', 'viola_skycalc_dir'})
 
 
 def load_site_config(path: str | Path) -> dict[str, str]:
@@ -208,9 +201,8 @@ def format_science_config(params: dict[str, Any], *,
         for heading, defaults in _WORKFLOW_GROUPS:
             lines.append(f'# --- {heading} ---')
             if heading == 'Observing atmosphere and tellurics':
-                lines.append('# Set tellurics True to enable per-exposure TelFit absorption.')
-                lines.append('# Humidity sigma is in percentage points, not PWV (mm).')
-                lines.append('# telfit_seed controls humidity sampling independently of noise_seed.')
+                lines.append('# Set tellurics True to use the external HDF5 telluric library.')
+                lines.append('# PWV mean and sigma are in mm; the per-exposure series is reproducible.')
             if heading.startswith('Chemistry'):
                 lines.append('# For manual profiles: chemistry file; abundances_file abundances_manual.dat')
                 lines.append('# For FastChem Cond: set fastchem_condensation True and supply condensates file')

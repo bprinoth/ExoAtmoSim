@@ -126,8 +126,12 @@ def plot_observing_conditions(table, path):
     t = (np.asarray(table['midpoint_jd_utc'],float) - float(table['midpoint_jd_utc'][0])) * 24
     with publication_style():
         fig, axes = plt.subplots(3, 1, figsize=(10, 8), sharex=True, constrained_layout=True)
-        axes[0].plot(t, table['humidity_percent'])
-        axes[0].set_ylabel('Relative humidity [%]')
+        if 'pwv_mm' in table.colnames:
+            axes[0].plot(t, table['pwv_mm'])
+            axes[0].set_ylabel('PWV [mm]')
+        else:
+            axes[0].plot(t, table['humidity_percent'])
+            axes[0].set_ylabel('Relative humidity [%]')
         axes[1].plot(t, table['airmass'])
         axes[1].set_ylabel('Airmass')
         axes[2].plot(t, table['temperature_k'], label='Temperature [K]')
@@ -138,3 +142,20 @@ def plot_observing_conditions(table, path):
         fig.savefig(path, dpi=180)
         plt.close(fig)
     return path
+
+
+def sample_pwv(schedule, *, mean_mm=2.5, sigma_mm=0.5, timescale_minutes=30., seed=42):
+    """Stationary, seeded correlated PWV values in mm, one per exposure."""
+    mids=np.asarray(schedule.midpoint_jd_utc,float)
+    if (mids.ndim!=1 or len(mids)==0 or np.any(np.diff(mids)<=0) or
+        not np.isfinite([mean_mm,sigma_mm,timescale_minutes]).all() or
+        mean_mm<=0 or sigma_mm<0 or timescale_minutes<=0):
+        raise ValueError('Invalid PWV sampling parameters or timestamps')
+    rng=np.random.default_rng(seed)
+    z=np.zeros(len(mids))
+    if sigma_mm: z[0]=rng.normal()
+    for i in range(1,len(mids)):
+        rho=np.exp(-(mids[i]-mids[i-1])*1440/timescale_minutes)
+        z[i]=rho*z[i-1]+np.sqrt(max(0.,1.-rho*rho))*rng.normal() if sigma_mm else 0.
+    # strict positive PWV; grid-range checks happen in grid_transmission
+    return np.maximum(0.001,mean_mm+sigma_mm*z)

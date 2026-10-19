@@ -43,7 +43,7 @@ _BUNDLED = {
     'ANDES_K': ('ANDES_K_segments_nm.npz', None),
     'VIOLA_K': ('VIOLA_K_orders_nm.npy', None),
     'VIOLA_H': ('VIOLA_H_orders_nm.npy', None),
-    'VIOLA_Y': ('VIOLA_Y_orders_nm.npy', None),
+    'VIOLA_J': ('VIOLA_J_orders_nm.npy', None),
     'IGRINS_HK': ('IGRINS_HK_orders_nm.npy', None),
     'IGRINS2_HK': ('IGRINS2_HK_orders_nm.npy', None),
     'SPIROU': ('SPIROU_orders_nm.npy', 'SPIROU_blaze.npy'),
@@ -85,8 +85,7 @@ def instrument_resource(instrument: str, kind: str = 'orders') -> Path:
     resource = files('exoatmosim.resources.instruments').joinpath(filename)
     if not resource.is_file():
         raise FileNotFoundError(f'Missing packaged resource: {filename}. '
-                                'For VIOLA, export actual ETC wavelength samples using '
-                                'examples/export_viola_orders.py; no synthetic grid is provided.')
+                                'The distribution must include the validated instrument wavelength resource.')
     return Path(str(resource))
 
 

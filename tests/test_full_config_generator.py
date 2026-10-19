@@ -14,17 +14,9 @@ class GeneratorTests(unittest.TestCase):
         self.assertEqual(cfg['fastchem_condensation'], 'False')
         self.assertEqual(cfg['rv_plot_extent'], '200')
         self.assertEqual(cfg['tellurics'], 'False')
-        expected_telluric_defaults = {
-            'telfit_humidity_percent': '50',
-            'telfit_humidity_sigma_percent': '0',
-            'telfit_humidity_timescale_minutes': '30',
-            'telfit_pressure_hpa': '600',
-            'telfit_temperature_k': '273',
-            'telfit_ringing_tolerance': '2e-4',
-            'telfit_seed': '42',
-        }
-        for key, expected in expected_telluric_defaults.items():
-            self.assertEqual(cfg[key], expected, key)
+        self.assertEqual(cfg['pwv'], '2.5')
+        self.assertEqual(cfg['pwv_sigma'], '0.5')
+        self.assertFalse(any(k.startswith('telfit_') for k in cfg))
         self.assertIn('Observing atmosphere and tellurics',
                       format_science_config({'P': 2.7}))
         self.assertLess(format_science_config({'P': 2.7}).index('# --- Orbital velocities'),
