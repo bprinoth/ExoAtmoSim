@@ -28,7 +28,7 @@ def resolve_config(config_path: Path | None, *, planet: str | None,
                    data_dir: Path = Path('data'), fresh: bool = False,
                    instrument: str | None = None) -> Path:
     """Reuse the user's science config unless explicitly asked for NASA creation."""
-    supported = ('CRIRES_K', 'ANDES', 'ANDES_K', 'IGRINS_HK', 'IGRINS2_HK', 'SPIROU', 'ESPRESSO')
+    supported = ('CRIRES_K', 'ANDES', 'ANDES_K', 'IGRINS_HK', 'IGRINS2_HK', 'SPIROU', 'ESPRESSO', 'VIOLA_J', 'VIOLA_H', 'VIOLA_K')
     if instrument is not None and instrument.upper() not in supported:
         raise ValueError(f'Unsupported instrument {instrument!r}; choose from {supported}')
     if config_path is not None and planet is not None:
@@ -69,7 +69,7 @@ def resolve_config(config_path: Path | None, *, planet: str | None,
     return config_path
 
 
-def run(config_path: Path, *, snr: float = 100., seed: int = 42,
+def run(config_path: Path, *, snr: float | None = None, seed: int = 42,
         overwrite: bool = False, tellurics: bool | None = None):
     """Run with an optional seed-only telluric override.
 
@@ -95,7 +95,7 @@ def run(config_path: Path, *, snr: float = 100., seed: int = 42,
         Path(temporary).unlink(missing_ok=True)
 
 
-def _run_pipeline(config_path: Path, *, snr: float = 100., seed: int = 42,
+def _run_pipeline(config_path: Path, *, snr: float | None = None, seed: int = 42,
                   overwrite: bool = False):
     import numpy as np
     from exoatmosim.poseidon import TransmissionRun
@@ -105,12 +105,18 @@ def _run_pipeline(config_path: Path, *, snr: float = 100., seed: int = 42,
     config_path = Path(config_path).resolve()
     cfg = Config.from_file(config_path)
     instrument = str(cfg.get('instrument', '')).upper()
-    if instrument not in ('CRIRES_K', 'ANDES', 'ANDES_K', 'IGRINS_HK', 'IGRINS2_HK', 'SPIROU', 'ESPRESSO'):
+    if instrument not in ('CRIRES_K', 'ANDES', 'ANDES_K', 'IGRINS_HK', 'IGRINS2_HK', 'SPIROU', 'ESPRESSO', 'VIOLA_J', 'VIOLA_H', 'VIOLA_K'):
         raise ValueError(f'Unsupported full-pipeline instrument: {instrument}')
-    if cfg.get('chemistry', '').lower() != 'fastchem':
-        raise ValueError('Full test requires chemistry fastchem in config')
-    if not np.isfinite(snr) or snr <= 0:
-        raise ValueError('--snr must be positive and finite')
+    chemistry = str(cfg.get('chemistry', 'fastchem')).lower()
+    if chemistry not in ('fastchem', 'kaltenegger'):
+        raise ValueError('Full pipeline requires chemistry fastchem or kaltenegger')
+    if instrument.startswith('VIOLA_'):
+        if snr is not None:
+            raise ValueError('VIOLA computes ETC electron noise: do not supply --snr')
+    else:
+        if snr is None: snr = 100.
+        if not np.isfinite(snr) or snr <= 0:
+            raise ValueError('--snr must be positive and finite')
     mock_path = config_path.parent / 'simulations' / instrument / f'seed_{seed:04d}'
     model_path = mock_path / f'{config_path.parent.name}.fits'
     snapshot_path = mock_path / 'config'
@@ -127,22 +133,23 @@ def _run_pipeline(config_path: Path, *, snr: float = 100., seed: int = 42,
 
     diagnostic = mock_path / 'diagnostics'
     print('\n' + '=' * 64)
-    print(f' ExoAtmoSim | FastChem / POSEIDON / PHOENIX / {instrument}')
+    print(f' ExoAtmoSim | {chemistry} / POSEIDON / PHOENIX / {instrument}')
     print('=' * 64)
-    print(f'Planet: {config_path.parent.name}  |  Seed: {seed}  |  SNR: {snr:g}')
+    print(f'Planet: {config_path.parent.name}  |  Seed: {seed}  |  '
+          + ('VIOLA ETC electron noise' if instrument.startswith('VIOLA_') else f'SNR: {snr:g}'))
     print(f'Output: {mock_path}')
     mock_path.mkdir(parents=True, exist_ok=True)
     if not snapshot_path.exists() or snapshot_path.read_bytes() != incoming_config:
         snapshot_path.write_bytes(incoming_config)
     print(f'Config snapshot: {snapshot_path}')
     diagnostic.mkdir(parents=True, exist_ok=True)
-    print('[2/5] FastChem: chemistry and atmospheric structure')
+    print(f'[2/5] {chemistry}: chemistry and atmospheric structure')
     atmosphere_run = TransmissionRun.from_config(config_path)
     with publication_style():
         atmosphere_run.atmosphere.plot_tp(diagnostic / 'temperature_pressure.png')
-        atmosphere_run.abundances.plot(diagnostic / 'fastchem_abundances.png',
-                                       title='FastChem equilibrium abundances')
-    atmosphere_run.abundances.to_file(diagnostic / 'fastchem_abundances.dat')
+        atmosphere_run.abundances.plot(diagnostic / f'{chemistry}_abundances.png',
+                                       title=f'{chemistry} abundances')
+    atmosphere_run.abundances.to_file(diagnostic / f'{chemistry}_abundances.dat')
     print('[3/5] POSEIDON: calculating planetary transmission')
     spectrum = atmosphere_run.compute()
     t = np.asarray(spectrum.transmission, float)
@@ -194,7 +201,8 @@ def main(argv=None):
     telluric_group.add_argument('--no-tellurics', dest='tellurics', action='store_false',
                                help='Disable TelFit for this seed, without editing planet config')
     parser.set_defaults(tellurics=None)
-    parser.add_argument('--snr', type=float, default=100.)
+    parser.add_argument('--snr', type=float, default=None,
+                        help='Constant SNR for non-VIOLA; VIOLA derives ETC noise')
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--data-dir', type=Path, default=Path('data'),
                         help='NASA generated files and outputs root (default: data)')

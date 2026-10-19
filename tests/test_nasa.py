@@ -33,7 +33,7 @@ class TestArchiveCompatibility(unittest.TestCase):
         reread = Config.from_text(text)
         self.assertEqual(reread.to_text(), text)
         self.assertEqual(set(reread), set(EXPECTED_KEYS + ATMOSPHERE_KEYS))
-        self.assertEqual(reread['stellar_type'], 'M3A')
+        self.assertEqual(reread['stellar_type'], 'M2.5V')
         self.assertEqual(reread['transit_flag'], 'True')
         self.assertAlmostEqual(reread.get_float('P'), 1.27)
         self.assertAlmostEqual(reread.get_float('observation_window_hours'), 4.3)

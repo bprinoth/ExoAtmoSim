@@ -49,7 +49,7 @@ class KalteneggerIntegrationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             site_file = Path(d) / 'site_paths.conf'
             site_file.write_text(
-                'kaltenegger_profiles_dir /tmp/downloaded_kaltenegger\\n',
+                'kaltenegger_profiles_dir /tmp/downloaded_kaltenegger\n',
                 encoding='utf8')
             site = load_site_config(site_file)
             self.assertEqual(site['kaltenegger_profiles_dir'],

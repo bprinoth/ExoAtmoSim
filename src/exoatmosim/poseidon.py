@@ -19,9 +19,9 @@ from .backend_paths import configure_backend_path, configure_poseidon_environmen
 # the user's database, and should not be interpreted as universal support.
 SUPPORTED_SPECIES = frozenset('''H2O CO2 CH4 CO Na K NH3 HCN SO2 H2S PH3 C2H2 OCS TiO VO
 AlO SiO CaO MgO NaO LaO ZrO SO NO PO TiH CrH FeH ScH AlH SiH BeH CaH
-MgH LiH NaH OH OH+ CH NH SH PN PS CS C2 CH3 H3+ N2 N2O NO2 C2H4 C2H6
+MgH LiH NaH OH OH+ CH NH SH PN PS CS C2 CH3 H3+ N2O NO2 C2H4 C2H6
 CH3CN CH3OH CH3Cl GeH4 CS2 O2 O3 C2H6S Al Ba Ba+ Ca Ca+ Cr Cs Fe
-Fe+ Li Mg Mg+ Mn Ni O Rb Sc Ti Ti+ V V+ 12C-16O 13C-16O 12C-18O
+Fe+ Li Mg Mg+ Mn Ni O Rb Sc Ti Ti+ V V+ N2 12C-16O 13C-16O 12C-18O
 12C-17O 13C-18O 13C-17O H H2 He H- e-'''.split())
 
 
@@ -131,40 +131,67 @@ def composition_on_atmosphere(
     return Composition(output)
 
 
-def select_legacy_profiles(config: Config, profile_root: str | Path):
-    """Map the original NASA host metadata to a complete template/epoch pair."""
+KALTENEGGER_AGES_GA = (0.0, 0.8, 2.0, 3.9)
+KALTENEGGER_EARTH_REFERENCE_AGE_GYR = 4.6
+
+
+def select_kaltenegger_profiles(config: Config, profile_root: str | Path):
+    """Select an existing PT/chemistry pair, without modifying NASA metadata.
+
+    NASA Gyr_age is the measured *stellar* age, not geological lookback.
+    Treat it as an Earth-analogue evolutionary clock (4.6 Gyr reference),
+    an explicit modeling approximation rather than a physical equivalence.
+    """
     import math
     from .nasa import closest_spectral_type
+
     root = Path(profile_root)
-    files = {}
-    for pt in (root / 'PT_profiles').glob('AltPT_*_*Ga.txt'):
-        match = re.fullmatch(r'AltPT_(.+)_([0-9]+(?:[.][0-9]+)?)Ga[.]txt', pt.name)
-        if not match or pt.name.startswith('._'):
-            continue
-        stype, age_label = match.groups()
-        if stype not in ('F0V','F7V','G8V','K2V','K7V','M1A','M3A','M8A','Sun') or float(age_label) not in (0.,.8,2.,3.9):
-            continue
-        chem = root / 'chem_profiles' / f'Chem_{stype}_{age_label}Ga.txt'
-        if chem.is_file():
-            files[(stype, float(age_label))] = (pt, chem)
-    if not files:
-        raise FileNotFoundError(f'No complete Kaltenegger PT/Chemistry pairs: {root}')
-    source = config['stellar_type']
-    chosen = closest_spectral_type(source)
-    available = sorted(age for stype, age in files if stype == chosen)
-    if not available:
-        raise FileNotFoundError(f'No complete Kaltenegger pairs for nearest stellar type {chosen}')
+    desired_type = closest_spectral_type(config.get('stellar_type'))
     try:
-        age = float(config['Gyr_age'])
-    except (KeyError, ValueError) as exc:
-        raise ValueError('Kaltenegger mode requires a valid NASA Gyr_age') from exc
-    if not math.isfinite(age) or age < 0:
-        raise ValueError('Kaltenegger mode requires finite nonnegative NASA stellar age')
-    lookback = max(0., 4.6-age)
-    epoch = min(available, key=lambda a: (abs(a-lookback), a))
-    print(f'[KALTENEGGER] NASA stellar_type={source}, Gyr_age={age:g}; '
-          f'Earth-analogue lookback={lookback:g} Ga; selected {chosen}, {epoch:g} Ga')
-    return files[(chosen,epoch)]
+        stellar_age = float(config['Gyr_age'])
+    except (KeyError, ValueError, TypeError) as exc:
+        raise ValueError('Kaltenegger selection requires finite NASA Gyr_age in Gyr') from exc
+    if not math.isfinite(stellar_age) or stellar_age < 0:
+        raise ValueError('Kaltenegger selection requires nonnegative finite NASA Gyr_age')
+    lookback = max(0.0, KALTENEGGER_EARTH_REFERENCE_AGE_GYR - stellar_age)
+
+    pairs = []
+    for age in KALTENEGGER_AGES_GA:
+        age_label = f'{age:.1f}'
+        for name in ('F0V','F7V','G8V','K2V','K7V','M1A','M3A','M8A','Sun'):
+            pt = root / 'PT_profiles' / f'AltPT_{name}_{age_label}Ga.txt'
+            chem = root / 'chem_profiles' / f'Chem_{name}_{age_label}Ga.txt'
+            if pt.is_file() and chem.is_file():
+                pairs.append((name, age, pt, chem))
+    if not pairs:
+        raise FileNotFoundError(f'No matching Kaltenegger PT and chemistry pairs under {root}')
+
+    # Keep the stellar-template preference first. Within the selected type,
+    # choose the nearest geological age with both files present.
+    available_types = {name for name, _, _, _ in pairs}
+    if desired_type in available_types:
+        selected_type = desired_type
+    else:
+        # Use the same ordered spectral coordinate as the NASA mapper,
+        # explicitly treating Sun as G2V rather than silently picking G8V.
+        coord = {'F0V':0., 'F7V':7., 'Sun':12., 'G8V':18.,
+                 'K2V':22., 'K7V':27., 'M1A':31., 'M3A':33., 'M8A':38.}
+        selected_type = min(available_types, key=lambda x:(abs(coord[x]-coord[desired_type]), coord[x]))
+        import warnings
+        warnings.warn(f'Kaltenegger template {desired_type} is unavailable; using {selected_type}',
+                      UserWarning, stacklevel=2)
+    name, age, pt, chem = min((x for x in pairs if x[0] == selected_type),
+                              key=lambda x:(abs(x[1]-lookback), x[1]))
+    print(f'[KALTENEGGER] NASA stellar_type={config.get("stellar_type")!r}, '
+          f'Gyr_age={stellar_age:g} Gyr; requested lookback={lookback:.3f} Ga '
+          f'(Earth-analogue reference {KALTENEGGER_EARTH_REFERENCE_AGE_GYR:g} Gyr).')
+    print(f'[KALTENEGGER] Selected {name}, {age:.1f} Ga: {pt.name} / {chem.name}')
+    return pt, chem
+
+
+def select_legacy_profiles(config: Config, profile_root: str | Path):
+    """Compatibility alias for the modern automatic Kaltenegger selector."""
+    return select_kaltenegger_profiles(config, profile_root)
 
 
 @dataclass(frozen=True)
@@ -351,37 +378,43 @@ class TransmissionRun:
                 site = Config.from_file(site_path) if site_path is not None else None
                 if site is None or 'kaltenegger_profiles_dir' not in site:
                     raise FileNotFoundError(
-                        'Download Kaltenegger profiles from https://zenodo.org/records/14829587 '
-                        'and configure kaltenegger_profiles_dir in config/site_paths.conf; '
-                        'expected PT_profiles/ and chem_profiles/.')
+                        'Kaltenegger data are not bundled. Download from '
+                        'https://zenodo.org/records/14829587 and set '
+                        'kaltenegger_profiles_dir in config/site_paths.conf. '
+                        'The directory must contain PT_profiles/ and chem_profiles/.'
+                    )
                 root = Path(site['kaltenegger_profiles_dir']).expanduser()
                 if not root.is_absolute():
                     root = site_path.parent / root
             root = root.resolve()
             if not (root / 'PT_profiles').is_dir() or not (root / 'chem_profiles').is_dir():
-                raise FileNotFoundError(f'Kaltenegger folder {root} needs PT_profiles/ and chem_profiles/')
-            pt, chem = select_legacy_profiles(config, root)
-            print(f'[KALTENEGGER] Selected files: {pt.name} / {chem.name}')
-            atmosphere, abundances = KalteneggerConverter().load_earth_like(pt, chem)
+                raise FileNotFoundError(
+                    f'Invalid Kaltenegger profiles directory {root}: expected '
+                    'PT_profiles/ and chem_profiles/ subdirectories'
+                )
+            pt_path, chem_path = select_legacy_profiles(config, root)
+            atmosphere, abundances = KalteneggerConverter().load_earth_like(pt_path, chem_path)
         else:
             if 'bulk_species' not in config or not config['bulk_species'].strip():
                 raise ValueError('Config must explicitly specify bulk_species')
             atmosphere = Atmosphere.from_config(config, config_dir=path.parent)
-            if chemistry == 'fastchem':
-                from .fastchem import equilibrium_profile
-                abundances = equilibrium_profile(config, atmosphere, config_dir=path.parent)
-            elif chemistry == 'manual':
-                from .manual_chemistry import manual_profile
-                abundances = manual_profile(config, atmosphere)
-            elif chemistry == 'file':
-                if 'abundances_file' not in config:
-                    raise ValueError('Config requires abundances_file for chemistry=file')
-                abundance_path = Path(config['abundances_file']).expanduser()
-                if not abundance_path.is_absolute():
-                    abundance_path = path.parent / abundance_path
-                abundances = AbundanceProfile.from_file(abundance_path, bulk_species=config['bulk_species'])
-            else:
-                raise ValueError('chemistry must be kaltenegger, file, manual, or fastchem')
+        if chemistry == 'kaltenegger':
+            pass
+        elif chemistry == 'fastchem':
+            from .fastchem import equilibrium_profile
+            abundances = equilibrium_profile(config, atmosphere, config_dir=path.parent)
+        elif chemistry == 'manual':
+            from .manual_chemistry import manual_profile
+            abundances = manual_profile(config, atmosphere)
+        elif chemistry == 'file':
+            if 'abundances_file' not in config:
+                raise ValueError('Config requires abundances_file for chemistry=file')
+            abundance_path = Path(config['abundances_file']).expanduser()
+            if not abundance_path.is_absolute():
+                abundance_path = path.parent / abundance_path
+            abundances = AbundanceProfile.from_file(abundance_path, bulk_species=config['bulk_species'])
+        else:
+            raise ValueError('chemistry must be kaltenegger, file, manual, or fastchem')
         abundances = abundances.on_atmosphere(atmosphere)
         model = PoseidonTransmissionModel.from_config(config, config_path=path)
         model.validate(atmosphere, abundances.as_poseidon_composition(),

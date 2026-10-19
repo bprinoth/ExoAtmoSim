@@ -4,8 +4,7 @@ Run from project root after exporting the existing planetary FITS:
   python examples/run_independent_crires.py data/TOI-1842_b/config --snr 100
 
 By default, retrieve a PHOENIX stellar spectrum using the existing provider.
-Set stellar_source VIOLA in the config for per-exposure observer-frame VIOLA
-stellar+telluric spectra (requires tellurics False to avoid double counting).
+VIOLA_J/H/K use the separate native PHOENIX + TelFit + ETC-noise backend.
 An optional --stellar-npz path can override this with wavelength_nm and flux
 arrays on the same AIR wavelength convention as the CRIRES_K order grid.
 Tellurics use optional TelFit, evaluated at every exposure altitude.
@@ -114,7 +113,7 @@ def run(config_path, stellar_npz, *, output=None, snr=None, seed=42, overwrite=F
     config_path = Path(config_path).resolve()
     cfg = Config.from_file(config_path)
     instrument = str(cfg.get('instrument', 'CRIRES_K')).upper()
-    if instrument not in ('CRIRES_K', 'ANDES', 'ANDES_K', 'IGRINS_HK', 'IGRINS2_HK', 'SPIROU', 'ESPRESSO', 'VIOLA_K', 'VIOLA_H', 'VIOLA_Y'):
+    if instrument not in ('CRIRES_K', 'ANDES', 'ANDES_K', 'IGRINS_HK', 'IGRINS2_HK', 'SPIROU', 'ESPRESSO', 'VIOLA_K', 'VIOLA_H', 'VIOLA_J'):
         raise ValueError(f'Unsupported instrument: {instrument}')
     if output is not None:
         out = Path(output).resolve()
@@ -122,8 +121,6 @@ def run(config_path, stellar_npz, *, output=None, snr=None, seed=42, overwrite=F
         out = config_path.parent
     else:
         out = (config_path.parent / 'simulations' / instrument / f'seed_{seed:04d}').resolve()
-    if resume_viola_from is not None and not instrument.startswith('VIOLA_'):
-        raise ValueError('--resume-viola-from requires a VIOLA instrument')
     import hashlib
     import json
     cfg_digest = hashlib.sha256(config_path.read_bytes()).hexdigest()
@@ -155,6 +152,13 @@ def run(config_path, stellar_npz, *, output=None, snr=None, seed=42, overwrite=F
         temperature_k=cfg.get_float('telfit_temperature_k', 273.0),
         seed=cfg.get_int('telfit_seed', seed),
     )
+    from exoatmosim.observing.conditions import sample_pwv
+    pwv = sample_pwv(schedule, mean_mm=cfg.get_float('pwv',2.5),
+                     sigma_mm=cfg.get_float('pwv_sigma',0.5),
+                     timescale_minutes=cfg.get_float('pwv_timescale_minutes',30.),
+                     seed=cfg.get_int('pwv_seed',seed))
+    conditions['pwv_mm'] = pwv
+    conditions['pwv_mm'].unit = 'mm'
     write_observing_conditions(out / 'observing_conditions.ecsv', conditions)
     conditions = read_observing_conditions(out / 'observing_conditions.ecsv', schedule)
     plot_observing_conditions(conditions, diagnostic / 'observing_conditions.png')
@@ -208,58 +212,29 @@ def run(config_path, stellar_npz, *, output=None, snr=None, seed=42, overwrite=F
         if not np.any(weight > 0):
             print('[WARNING] No in-transit exposures despite the selected center. '
                   'Check transit geometry, inclination, and T14.')
-    if instrument.startswith('VIOLA_'):
-        if stellar_npz is not None:
-            raise ValueError('VIOLA does not accept --stellar-npz; the ETC supplies the stellar spectrum')
-        if snr is not None:
-            raise ValueError('VIOLA uses ETC electron-count noise rather than constant --snr')
-        from exoatmosim.observing.viola_detector import make_viola_observation
+    if instrument in ('VIOLA_J', 'VIOLA_H', 'VIOLA_K'):
+        if stellar_npz is not None or resume_viola_from is not None or snr is not None:
+            raise ValueError('Native VIOLA uses PHOENIX and ETC noise; no stellar-npz, resume-viola-from or --snr')
+        from exoatmosim.observing.viola_native import make_native_viola_observation
         model_file = (Path(model_path).resolve() if model_path is not None else
                       out / f'{config_path.parent.name}.fits')
         if not model_file.is_file():
-            raise FileNotFoundError(f'Seed-specific planetary FITS not found: {model_file}. '
-                                    'Run the full pipeline to compute it first.')
+            raise FileNotFoundError(f'Planet FITS not found: {model_file}; run spectrum first')
         with fits.open(model_file) as hdul:
             pw = np.asarray(hdul[1].data, float)
             pf = np.asarray(hdul[2].data, float)
-        # Broaden the planetary model to the specified VIOLA resolution ONCE.
-        # VIOLA's stellar spectrum is already instrument modeled; do not touch it.
-        pw, pf = broaden_spectrum(pw, pf, resolution=cfg.get_float('resolution'))
-        written = make_viola_observation(schedule, rv_star, rv_planet, weight,
-                    cfg, pw, pf, out, seed=seed, overwrite=overwrite,
-                    resume_from=resume_viola_from)
+        written = make_native_viola_observation(schedule, rv_star, rv_planet, weight,
+                  cfg, config_path, pw, pf, out, seed=seed, overwrite=overwrite)
         write_observation_times(out / 'obs_times', schedule)
-        print(f'VIOLA instrument {instrument}: {schedule.n_exposures} exposure spectra '
-              f'({"recovered CSVs" if resume_viola_from else "independent ETC evaluations"})')
-        print(f'Final pixel-electron spectra: {out}')
         run_manifest_path.write_text(json.dumps({
-            'instrument': instrument, 'noise_seed': seed,
-            'config_sha256': cfg_digest, 'config_snapshot': 'config', 'n_exposures': schedule.n_exposures,
-            'recovered_existing_viola_csv': resume_viola_from is not None,
-            'products': ['wave_0.fits', 'stellar_flux_0.fits', 'model_flux_0.fits',
-                         'noise_0.fits', 'order_0.fits', 'viola_conditions.csv'],
-            'observer_frame_stellar_input': True, 'additional_stellar_doppler': False,
-            'additional_telluric_multiplication': False}, indent=2) + '\n')
-        try:
-            from plot_saved_observation import plot_saved_observation
-            print(f'Diagnostic: {plot_saved_observation(out)}')
-        except (ImportError, OSError, ValueError) as exc:
-            print(f'[WARNING] Saved VIOLA FITS successfully, but quick-look failed: {exc}')
+            'instrument':instrument,'noise_seed':seed,'config_sha256':cfg_digest,
+            'config_snapshot':'config','n_exposures':schedule.n_exposures,
+            'backend':'VIOLA_NATIVE_PHOENIX_HDF5_ETC_V0.5'},indent=2)+'\n')
         return written
-    stellar_source = str(cfg.get('stellar_source', 'PHOENIX')).upper()
-    if stellar_source not in ('PHOENIX', 'VIOLA'):
-        raise ValueError('stellar_source must be PHOENIX or VIOLA')
-    if stellar_source == 'VIOLA' and stellar_npz is not None:
-        raise ValueError('--stellar-npz cannot be combined with stellar_source VIOLA')
-    if stellar_source == 'VIOLA':
-        if cfg.get_bool('tellurics', False):
-            raise ValueError('VIOLA already includes atmospheric absorption; set tellurics False to avoid applying TelFit twice')
-        from exoatmosim.observing.viola import viola_observer_spectra
-        sw, sf, viola_snr = viola_observer_spectra(
-            schedule, rv_star, cfg, out / 'viola_stellar')
-        print(f'Loaded {len(sf)} observer-frame VIOLA stellar spectra; '
-              'stellar Doppler shift and telluric multiplication are DISABLED')
-    elif stellar_npz is None:
+    stellar_source = 'PHOENIX'
+    if cfg.get('stellar_source', 'PHOENIX').upper() != 'PHOENIX':
+        raise ValueError('Only PHOENIX stellar_source is supported')
+    if stellar_npz is None:
         phoenix = PhoenixSpectrumProvider.from_config(cfg, config_path=config_path)
         # Provider's normal wavelength crop ends at the instrument boundaries.
         # Allow for Doppler motion and the finite convolution kernel BEFORE retrieval.
@@ -304,36 +279,29 @@ def run(config_path, stellar_npz, *, output=None, snr=None, seed=42, overwrite=F
     if np.count_nonzero(selected) < 8:
         raise ValueError('Stellar spectrum does not cover instrument orders')
     sw = sw[selected]
-    sf = sf[:, selected] if stellar_source == 'VIOLA' else sf[selected]
+    sf = sf[selected]
     resolution = cfg.get_float('resolution')
     vsini = cfg.get_float('vsini', 0.)
-    if stellar_source != 'VIOLA':
-        print(f'Stellar rotational broadening: vsini={vsini:.3f} km/s; instrument R={resolution:.0f}')
-        sw, sf = broaden_spectrum(sw, sf, resolution=resolution, vsini_kms=vsini)
-    else:
-        print('[VIOLA] Keeping the native ETC stellar/telluric spectrum; no extra stellar broadening or smoothing')
+    print(f'Stellar rotational broadening: vsini={vsini:.3f} km/s; instrument R={resolution:.0f}')
+    sw, sf = broaden_spectrum(sw, sf, resolution=resolution, vsini_kms=vsini)
     # Broaden the POSEIDON transmission to instrument resolution (without planetary rotation).
     pw, pf = broaden_spectrum(pw, pf, resolution=resolution)
     use_snr = float(snr) if snr is not None else cfg.get_float('SNR', 100.0)
     extra = {}
     if cfg.get_bool('tellurics', False):
-        from exoatmosim.observing.tellurics import telfit_transmission, plot_tellurics
-        # Model the actual exposure-by-exposure atmosphere on the full order coverage.
-        # Add a 1-nm guard band because TelFit's returned edges are not exact.
-        grid = np.linspace(float(min(w.min() for w in orders))-1., float(max(w.max() for w in orders))+1., 2000)
-        tw, transmission = telfit_transmission(
-            schedule, grid,
-            pressure_hpa=cfg.get_float('telfit_pressure_hpa', 600.),
-            temperature_k=cfg.get_float('telfit_temperature_k', 273.),
-            latitude_deg=cfg.get_float('lat'),
-            elevation_km=cfg.get_float('elev')/1000.,
-            resolving_power=cfg.get_float('resolution'), conditions=conditions,
-            ringing_tolerance=cfg.get_float('telfit_ringing_tolerance', 2e-4))
+        from exoatmosim.observing.telluric_grid import grid_transmission, resolve_grid_file
+        from exoatmosim.observing.tellurics import plot_tellurics
+        # Evaluate optical-depth interpolation at the instrument's native air-nm
+        # sample wavelengths; no coarse 2000-point telluric sampling.
+        grid = np.unique(np.concatenate(orders))
+        tw, transmission = grid_transmission(
+            schedule, grid, pwv_mm=np.asarray(conditions['pwv_mm'],float),
+            grid_file=resolve_grid_file(cfg.get('observatory','paranal'), config_path=config_path))
         plot_tellurics(tw, transmission, schedule, diagnostic / 'telluric_transmission.png')
         extra = dict(telluric_wavelength_nm=tw, telluric_transmission=transmission)
     results = simulate_orders(orders, sw, sf, pw, pf, rv_star, rv_planet,
                               weight, snr=use_snr, seed=seed,
-                              stellar_observer_frame=(stellar_source == 'VIOLA'), **extra)
+                              stellar_observer_frame=False, **extra)
     written = write_spectral_orders(results, out, overwrite=overwrite)
     # Mandatory quick-look diagnostic: verify that an actual order was synthesized.
     import matplotlib
@@ -359,7 +327,7 @@ def run(config_path, stellar_npz, *, output=None, snr=None, seed=42, overwrite=F
     run_manifest_path.write_text(json.dumps({
         'instrument': instrument, 'noise_seed': seed, 'config_sha256': cfg_digest,
         'config_snapshot': 'config', 'n_exposures': schedule.n_exposures, 'constant_snr': use_snr,
-        'observer_frame_stellar_input': stellar_source == 'VIOLA',
+        'observer_frame_stellar_input': False,
     }, indent=2) + '\n')
     print(f'Stellar source: {stellar_source}')
     print(f'Wrote {len(results)} {instrument} orders for {schedule.n_exposures} exposures, SNR={use_snr:g}')
@@ -377,8 +345,7 @@ if __name__ == '__main__':
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--overwrite', action='store_true')
     parser.add_argument('--model-path', type=Path, help='Explicit planetary model FITS (otherwise seed directory)')
-    parser.add_argument('--resume-viola-from', type=Path, help='Existing VIOLA ETC exposure root; do not call ETC again')
     args = parser.parse_args()
     run(args.config, args.stellar_npz, output=args.output, snr=args.snr,
         seed=args.seed, overwrite=args.overwrite,
-        resume_viola_from=args.resume_viola_from, model_path=args.model_path)
+        model_path=args.model_path)

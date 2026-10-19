@@ -28,7 +28,8 @@ def main(argv=None):
     observe = sub.add_parser('observe', help='Observe an existing planetary FITS with constant-S/N orders')
     observe.add_argument('config', type=Path)
     observe.add_argument('--seed', type=int, default=42)
-    observe.add_argument('--snr', type=float, default=100.)
+    observe.add_argument('--snr', type=float, default=None,
+                         help='Constant S/N for non-VIOLA; VIOLA uses ETC-derived electron noise')
     observe.add_argument('--stellar-npz', type=Path)
     observe.add_argument('--overwrite', action='store_true')
     args, remaining = parser.parse_known_args(argv)

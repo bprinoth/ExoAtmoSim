@@ -54,7 +54,7 @@ The simulator saves a reusable planet `config` under `data/<planet>/`, while eac
 
 TOI-1842 b with CRIRES+ K demonstrates the complete FastChem/POSEIDON-to-observations chain, including eccentric orbital velocities. WASP-189 b and ESPRESSO are development examples for optical/Fe simulations; supported wavelength setups have been exercised with constant S/N.
 
-**Under active development, not validated in this no-tellurics release:** telluric modelling and sampling, VIOLA, non-constant/instrument-specific S/N, emission spectroscopy, and a petitRADTRANS spectral backend.
+**Under active development:** VIOLA J/H/K is an experimental native PHOENIX + HDF5 telluric grid + ETC-inspired detector-noise backend. Sky emission is not yet modeled, so VIOLA S/N is optimistic. Telluric and noise validation, emission spectroscopy, and petitRADTRANS remain under development.
 
 The order simulator is independent of external legacy mock-observation software. See code docstrings for numerical and astrophysical assumptions.
 
@@ -79,50 +79,187 @@ The old `texp` and `exp_time` configuration keys are no longer accepted; update
 existing planet configs before simulating. The scheduler will explicitly report
 a missing `exposure_time` instead of silently choosing a different parameter.
 
-### Optional Kaltenegger/Rugheimer Earth-like chemistry
+### Kaltenegger / Rugheimer Earth-analogue chemistry (experimental)
 
-Download the third-party atmosphere profiles from
-[Zenodo record 14829587](https://zenodo.org/records/14829587).
-**They are not bundled or redistributed with ExoAtmoSim.** Extract
-the files preserving this layout:
+The third-party profile data are **not distributed with ExoAtmoSim**. Download
+and extract them from [Zenodo record 14829587](https://zenodo.org/records/14829587).
+Follow the archive's license and citation instructions. The expected layout is:
 
-```text
+```
 Kaltenegger_profiles/
-  PT_profiles/AltPT_F0V_0.0Ga.txt
-  chem_profiles/Chem_F0V_0.0Ga.txt
-  ... (all matching files)
+    PT_profiles/      # AltPT_<stellar type>_<epoch>Ga.txt
+    chem_profiles/    # Chem_<stellar type>_<epoch>Ga.txt
 ```
 
-Copy `config/site_paths.example.conf` to your private
-`config/site_paths.conf` and set:
+Set the absolute path to the **parent folder** in your machine-specific
+`config/site_paths.conf` (copy `config/site_paths.example.conf` if needed):
 
-```text
-kaltenegger_profiles_dir /absolute/path/to/Kaltenegger_profiles
+```
+kaltenegger_profiles_dir /path/to/Kaltenegger_profiles
 ```
 
-Set `chemistry kaltenegger` in a copy of your planet config; other
-settings and FastChem behavior remain unchanged. The original NASA
-`stellar_type` and `Gyr_age` values are preserved. Only when
-Kaltenegger chemistry is selected, ExoAtmoSim maps to the nearest
-available F0V, F7V, G8V, K2V, K7V, M1A, M3A, M8A or Sun template
-and 0.0, 0.8, 2.0 or 3.9 Ga geological lookback profile.
+Then use `chemistry kaltenegger` in a copy of the planet configuration. Neither
+the original NASA `stellar_type` nor `Gyr_age` is modified. The nearest
+available stellar template (F0V, F7V, G8V, K2V, K7V, M1A, M3A, M8A, Sun)
+and complete profile age (0.0, 0.8, 2.0, 3.9 Ga lookback) are chosen only
+for this chemistry backend. The age conversion uses an approximate Earth-
+analogue clock `max(0, 4.6 - Gyr_age)`; this is not a measured geological age
+of another planet.
 
-The lookback mapping, `max(0, 4.6 - Gyr_age)`, is an **approximate
-Earth-analogue clock**, not the geological age of an exoplanet.
-The PT format has `Z,T,P` columns (km, K, mbar); abundances have
-`Molecule`, `<species>_MR` and `<species>_ALT` continuation records.
-N2 is computed from all abundances *before* dropping species without
-POSEIDON opacity; the remaining VMRs are not renormalized. Omitted
-opacity species are reported as a limitation. Related work:
-https://arxiv.org/abs/1912.11149 .
+PT files contain `Z,T,P` records (km, K, mbar). Chemistry files contain
+`Molecule`, `<species>_MR` and `<species>_ALT` records, with multiline `^`
+continuation. Missing N2 is calculated as the residual of the **complete**
+chemistry profile, before unsupported POSEIDON opacity species are omitted;
+the retained mixing ratios and N2 are never renormalized. Unsupported
+absorption is reported as a modeling limitation. The FastChem workflow
+remains unchanged. Related study: https://arxiv.org/abs/1912.11149 .
 
-Run `exoatmosim atmosphere`, `exoatmosim spectrum`, then
-`exoatmosim observe` using the same configuration and seed.
+Run `exoatmosim atmosphere`, followed by `exoatmosim spectrum` and
+`exoatmosim observe` with the same planet config and seed, as above.
 
 ### Contributions and integration requests
 
-**Integration wishes are welcome!** If you would like support for another
-atmospheric chemistry model, radiative-transfer backend, instrument, or
-observing workflow, please [get in touch](https://bprinoth.github.io/)
-or [open a GitHub issue](https://github.com/bprinoth/ExoAtmoSim/issues).
-Scientific collaborations and contributions are very welcome.
+**Integration suggestions are welcome!** If you would like ExoAtmoSim to
+support another atmospheric chemistry source, radiative-transfer backend,
+instrument, or observing workflow, please contact the project maintainer via
+the [author's website](https://bprinoth.github.io/) or open a GitHub issue
+at https://github.com/bprinoth/ExoAtmoSim/issues . Contributions and
+scientific use cases are very welcome.
+
+
+## Experimental VIOLA J/H/K and HDF5 tellurics
+
+VIOLA_J, VIOLA_H and VIOLA_K use the packaged wavelength arrays, PHOENIX
+stellar models shifted per exposure, the planet's separate Doppler shift, an
+8 m reference telescope, R=300,000, and VIOLA ETC-inspired electron noise.
+The **external VIOLA ETC is not executed**. VIOLA sky emission is **not modeled**
+in this release: its S/N is an optimistic upper limit.
+
+With `tellurics True`, the same externally stored TelFit HDF5 transmission
+grids are used for VIOLA and the other supported instruments. The atmospheric
+transmission is selected at each exposure's airmass and sampled PWV, with
+bilinear interpolation in optical depth. It is not derived from VIOLA's
+sky-emission library. The grid-builder's approximate PWV calibration is
+experimental and needs validation.
+
+In a planet config set only the relevant atmospheric parameters:
+
+```text
+instrument VIOLA_H
+resolution 300000
+tellurics True
+pwv 2.5
+pwv_sigma 0.5
+```
+
+Keep the H-band magnitude `Hmag` (or Jmag/Kmag for those modes) in the
+planet config. Put your **private, machine-local** HDF5 directory in
+`config/site_paths.conf`:
+
+```text
+telluric_grid_dir /absolute/path/to/telluric_grids
+```
+
+The local path is resolved **at observation time**, including when running
+from outside the checkout. It is deliberately not copied into planet-specific
+configs or bundled into this repository. If needed, set
+`EXOATMOSIM_SITE_CONFIG` to an absolute path to your private file.
+See `TELLURIC_GRID_QUICKSTART.md` and `VIOLA_QUICKSTART.md`.
+
+```bash
+python -m pip install -e '.[tellurics]'
+exoatmosim spectrum data/YOUR_PLANET/config --seed 42 --overwrite
+exoatmosim observe data/YOUR_PLANET/config --seed 42 --overwrite
+```
+
+VIOLA uses ETC-inspired noise rather than a requested `--snr`; other
+instrument modes use the existing constant-S/N approximation.
+
+### Outputs and important limitations
+
+`order_0.fits`, `wave_0.fits`, `stellar_flux_0.fits`, `model_flux_0.fits`,
+`noise_0.fits`, `snr_res_0.fits`, `viola_native_manifest.json`.
+Counts and uncertainties are **per resolution element evaluated at each
+supplied wavelength center**, *not* per independent detector pixel. Oversampled
+adjacent samples have correlated physical noise, but the first implementation
+draws independent Gaussian errors; **do not interpret its cross-correlation
+significance as validated**. The native wavelength grids are computational
+segments, not measured echelle order boundaries. The ETC 2x2 detector-pixel
+noise convention is retained. Magnitudes anchor PHOENIX at a single reference
+wavelength (not full synthetic-filter photometry). Atmospheric transmission
+uses TelFit on a finer internal grid, and combined star × planet × tellurics
+are convolved to R=300,000 before sampling. No extra ETC stellar Doppler or
+telluric multiplication is performed. Validation of sky emission, TelFit
+wavelength convention, photometry and detector covariance remains necessary.
+
+For test parameters: `viola_seeing_arcsec` (default 1),
+`viola_slit_width_arcsec` (1.6), `viola_optics_throughput` (product of
+ETC default factors), `viola_nx`/`viola_ny` (2 each),
+`viola_read_noise_e_pixel` (20), `viola_dark_rate_e_s_pixel` (0.01),
+`viola_nod_subtraction` (True), `viola_ambient_temperature_k` (275),
+`viola_thermal_emissivity` (0.1), `viola_internal_sampling_r` (900000).
+
+
+## Experimental external telluric HDF5 grids
+
+See [TELLURIC_GRID_QUICKSTART.md](TELLURIC_GRID_QUICKSTART.md). Current planet configs use `tellurics`, `pwv` and `pwv_sigma`. No direct TelFit invocation in the grid-mode observation path; HDF5 grids live outside the repository.
+
+
+### VIOLA ETC provenance and telluric sites
+
+The experimental `VIOLA_J`, `VIOLA_H`, and `VIOLA_K` wavelength configurations
+and photon/noise calculations are informed by the independent
+[VIOLA Exposure Time Calculator (viola-etc)](https://github.com/sirinrats/viola-etc)
+by its upstream authors. ExoAtmoSim does **not** execute that ETC or redistribute
+its sky-emission tables. The current VIOLA model adopts an 8 m reference
+telescope (different from the ETC's default 2 m), uses the ExoAtmoSim PHOENIX
+stellar pipeline, and omits sky-emission noise for now. Its sensitivity
+estimates are therefore experimental, not validated VIOLA performance claims.
+
+For `tellurics True`, ExoAtmoSim reads **externally generated, high-resolution
+TelFit transmission grids** from HDF5 files; it does not call TelFit during
+individual observation exposures. The observing schedule supplies each exposure's
+airmass, while a seeded, time-correlated PWV series (mm) supplies the water-vapour
+coordinate. Transmission is interpolated **in optical depth** across neighboring
+airmass and PWV grid nodes, then used in the exposure's spectral synthesis.
+The transmission grids are independent of VIOLA's ETC and contain
+**absorption only**, not sky emission. Out-of-range conditions or missing grid
+coverage are errors rather than an unannounced clear-sky fallback.
+
+The telluric-grid builder supports these observing-site identifiers:
+
+| Site | Grid identifier |
+| --- | --- |
+| ESO Paranal Observatory (Chile) | `paranal` |
+| Cerro Armazones (Chile) | `armazones` |
+| Mauna Kea (Hawaiʻi) | `mauna_kea` |
+| Gemini South / Cerro Pachón (Chile) | `gemini_south` |
+| Roque de los Muchachos / La Palma (Canary Islands) | `la_palma` |
+
+These are **supported site definitions**, not a claim that all five production
+grids are already complete or validated. In particular, the Gemini South
+LBLRTM run has encountered failures. Install only verified grid files, kept
+outside GitHub, and configure their directory in the private
+`config/site_paths.conf` as `telluric_grid_dir /absolute/path/to/grids`.
+See [TELLURIC_GRID_QUICKSTART.md](TELLURIC_GRID_QUICKSTART.md) for setup.
+The builder's provisional conversion of PWV to TelFit relative humidity
+requires scientific validation.
+
+
+### External telluric grid distribution
+
+The high-resolution HDF5 telluric models are **not** part of the Git
+repository or the Python package. Obtain the separately distributed
+`telluric_<site>.h5` data from the project maintainer (a permanent download
+URL has not yet been published), and configure their containing directory
+only in your private `config/site_paths.conf` using `telluric_grid_dir`.
+A single grid library is shared by all supported instruments. The initial
+PWV-to-RH mapping used in grid production is approximate and must be
+validated before interpreting atmospheric retrieval or sensitivity results.
+
+The native VIOLA backend uses its provided J/H/K sampling grids, PHOENIX
+stellar flux anchored to Vega magnitudes, an 8 m reference telescope and
+ETC-inspired detector variance. Its atmosphere is drawn from the same HDF5
+library, not from the external VIOLA ETC. VIOLA sky emission is omitted, so
+its present noise predictions are optimistic. The native model and numerical
+limitations are documented in `VIOLA_QUICKSTART.md`.
