@@ -217,6 +217,8 @@ class TransmissionSpectrum:
         ax.set_xlabel('Wavelength (µm)')
         ax.set_ylabel(ylabel)
         ax.set_title(title)
+        ax.set_ylabel('Transmission T')
+        ax.set_title('POSEIDON transmission spectrum')
         fig.tight_layout()
         fig.savefig(path, dpi=180)
         plt.close(fig)

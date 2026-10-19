@@ -25,7 +25,7 @@ def occulted_fraction(d, Rp, zp):
     Assumes uniform stellar surface brightness (no limb darkening).
     """
     if not np.all(np.isfinite([d, Rp, zp])) or d < 0 or Rp <= 0:
-        raise ValueError('Occultation geometry requires finite d >= 0 and Rp > 0')
+        raise ValueError(f'Occultation geometry requires finite d >= 0 [is {d}] and Rp > 0 [is {Rp}]')
     if zp < 0 or d >= 1.0 + Rp:
         return 0.0
     # One disc lies completely inside the other.
