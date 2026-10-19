@@ -71,7 +71,7 @@ def plot_stellar_rotation(output_dir, original_wave_nm, original_flux,
         fig, ax = plt.subplots(figsize=(12, 5))
         ax.plot(original_wave_nm, original_flux, lw=.75, alpha=.7, label='PHOENIX (unbroadened)')
         ax.plot(rotated_wave_nm, rotated_flux, lw=.75,
-                label=rf'PHOENIX rotated ($v\\sin i$ = {vsini_kms:g} km/s)')
+                label=f'PHOENIX rotated (vsini = {vsini_kms:g} km/s)')
         ax.set(xlabel='Air wavelength [nm]',
                ylabel=r'Stellar flux [erg s$^{-1}$ cm$^{-2}$ nm$^{-1}$]',
                title='Stellar rotational broadening (before instrument LSF)')
