@@ -144,8 +144,13 @@ def calculate_template(config: str | Path, *, species: str, seed: int = 42,
     # The POSEIDON adapter returns 1 - T for the standard planet model.
     # Templates require the un-inverted transit depth T instead.
     transit_depth = TransmissionSpectrum(spectrum.wavelength_um, 1.0 - transmission)
-    return write_spectrum_fits(transit_depth, destination, overwrite=overwrite,
-                               config_path=path)
+    result = write_spectrum_fits(transit_depth, destination, overwrite=overwrite,
+                                 config_path=path)
+    with publication_style():
+        transit_depth.plot(destination.with_suffix('.png'),
+                           title=f'{species} template transit depth',
+                           ylabel='Transit depth (T)')
+    return result
 
 
 def simulate_observation(config: str | Path, *, seed: int = 42, snr: float | None = None,
