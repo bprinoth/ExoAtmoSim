@@ -143,8 +143,10 @@ def sample_viola_pwv(schedule, *, mean_mm=2.5, sigma_mm=0.5,
             or mean_mm <= 0 or sigma_mm < 0 or timescale_minutes <= 0):
         raise ValueError('Invalid VIOLA PWV schedule or parameters')
     from .viola_plots import plot_stellar_rotation
-    plot_stellar_rotation(output_dir, star.wavelength_nm, original_stellar_flux,
-                          star_wave, star_shape, vsini)
+    stellar_diagnostic = plot_stellar_rotation(
+        output_dir, star.wavelength_nm, original_stellar_flux,
+        star_wave, star_shape, vsini)
+    print(f'Stellar spectrum comparison: {stellar_diagnostic}')
     # Remove legacy duplicate only when regenerating an existing observation.
     old_planet_plot = output_dir / 'diagnostics' / 'planet_transmission.png'
     if overwrite and old_planet_plot.exists():
