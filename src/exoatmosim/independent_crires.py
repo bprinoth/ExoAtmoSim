@@ -169,7 +169,8 @@ def run(config_path, stellar_npz, *, output=None, snr=None, seed=42, overwrite=F
     conditions['pwv_mm'].unit = 'mm'
     write_observing_conditions(out / 'observing_conditions.ecsv', conditions)
     conditions = read_observing_conditions(out / 'observing_conditions.ecsv', schedule)
-    plot_observing_conditions(conditions, diagnostic / 'observing_conditions.png')
+    with publication_style():
+        plot_observing_conditions(conditions, diagnostic / 'observing_conditions.png')
     if schedule.mode == 'max_altitude':
         print('[INFO] Idealized observation: the synthetic transit center is placed at '
               f'maximum altitude (JD UTC {schedule.center_jd_utc:.9f}); '
