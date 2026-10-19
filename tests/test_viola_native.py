@@ -1,5 +1,7 @@
 """Fast, deterministic VIOLA ETC noise and photometric reference tests."""
 import unittest
+import tempfile
+from pathlib import Path
 import numpy as np
 from exoatmosim.config import Config
 from exoatmosim.observing.viola_native import (
@@ -54,5 +56,41 @@ class ViolaNativeTests(unittest.TestCase):
         self.assertLess(np.ptp(star)/np.mean(star),1e-4)
         # Each sample represents the SAME-sized resolution element, not an
         # independent detector bin. Adjacent samples are correlated physically.
+
+
+    def test_observe_rejects_nan_vsini_before_creating_products(self):
+        from exoatmosim.independent_crires import run
+        with tempfile.TemporaryDirectory() as temp:
+            config = Path(temp) / 'config'
+            config.write_text('instrument VIOLA_K\nresolution 300000\nvsini nan\n')
+            with self.assertRaisesRegex(ValueError, 'vsini.*finite'):
+                run(config, None)
+            self.assertFalse((Path(temp) / 'simulations').exists())
+
+    def test_observe_rejects_nonfinite_resolution(self):
+        from exoatmosim.independent_crires import run
+        with tempfile.TemporaryDirectory() as temp:
+            config = Path(temp) / 'config'
+            config.write_text('instrument VIOLA_K\\nresolution nan\\nvsini 4\\n')
+            with self.assertRaisesRegex(ValueError, 'resolution.*finite'):
+                run(config, None)
+
+    def test_rotation_and_lsf_are_separate_operations(self):
+        from exoatmosim.observing.spectral_processing import broaden_spectrum
+        wave = np.linspace(2100., 2101., 2001)
+        line = 1. - .3 * np.exp(-.5 * ((wave - 2100.5) / .003)**2)
+        instrumental_wave, instrumental = broaden_spectrum(
+            wave, line, resolution=300000.)
+        self.assertEqual(len(instrumental_wave), len(instrumental))
+        try:
+            from PyAstronomy import pyasl
+        except ImportError:
+            self.skipTest('PyAstronomy unavailable')
+        rotated_wave, rotated = broaden_spectrum(
+            wave, line, resolution=None, vsini_kms=5.)
+        combined_wave, combined = broaden_spectrum(
+            rotated_wave, rotated, resolution=300000.)
+        self.assertGreater(np.min(combined), np.min(instrumental))
+        self.assertTrue(np.isfinite(combined).all())
 
 if __name__=='__main__': unittest.main()
