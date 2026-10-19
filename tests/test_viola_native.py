@@ -99,4 +99,25 @@ class ViolaNativeTests(unittest.TestCase):
                            np.min(instrumental[core_instrument]))
         self.assertTrue(np.isfinite(combined).all())
 
+
+    def test_viola_exposure_loop_preserves_stellar_rest_frame_grid(self):
+        # Regression: the LSF's returned wavelength axis must never replace
+        # the stellar-rest-frame axis that subsequent RV shifts interpolate.
+        import ast
+        import inspect
+        import textwrap
+        from exoatmosim.observing.viola_native import make_native_viola_observation
+        tree = ast.parse(textwrap.dedent(inspect.getsource(make_native_viola_observation)))
+        exposure_loop = next(node for node in ast.walk(tree)
+                             if isinstance(node, ast.For)
+                             and isinstance(node.target, ast.Name)
+                             and node.target.id == 'i')
+        assignments = [target.id for node in ast.walk(exposure_loop)
+                       if isinstance(node, (ast.Assign, ast.AnnAssign))
+                       for target in (node.targets if isinstance(node, ast.Assign) else [node.target])
+                       for target in (target.elts if isinstance(target, (ast.Tuple, ast.List)) else [target])
+                       if isinstance(target, ast.Name)]
+        self.assertNotIn('star_wave', assignments)
+        self.assertIn('lsf_star_wave', assignments)
+
 if __name__=='__main__': unittest.main()
