@@ -235,11 +235,7 @@ def run(config_path, stellar_npz, *, output=None, snr=None, seed=42, overwrite=F
             pf = np.asarray(hdul[2].data, float)
         written = make_native_viola_observation(schedule, rv_star, rv_planet, weight,
                   cfg, config_path, pw, pf, out, seed=seed, overwrite=overwrite)
-        with fits.open(out / 'snr_res_0.fits') as snr_hdul:
-            snr_by_exposure = np.median(np.asarray(snr_hdul[0].data, float), axis=1)
-        plot_observing_conditions(
-            conditions, diagnostic / 'observing_conditions.png',
-            snr_per_exposure=snr_by_exposure)
+        plot_observing_conditions(conditions, diagnostic / 'observing_conditions.png')
         write_observation_times(out / 'obs_times', schedule)
         run_manifest_path.write_text(json.dumps({
             'instrument':instrument,'noise_seed':seed,'config_sha256':cfg_digest,
@@ -295,10 +291,16 @@ def run(config_path, stellar_npz, *, output=None, snr=None, seed=42, overwrite=F
         raise ValueError('Stellar spectrum does not cover instrument orders')
     sw = sw[selected]
     sf = sf[selected]
+    unbroadened_wave, unbroadened_flux = sw.copy(), sf.copy()
     resolution = cfg.get_float('resolution')
     vsini = cfg.get_float('vsini', 0.)
     print(f'Stellar rotational broadening: vsini={vsini:.3f} km/s; instrument R={resolution:.0f}')
     sw, sf = broaden_spectrum(sw, sf, resolution=resolution, vsini_kms=vsini)
+    from exoatmosim.observing.viola_plots import plot_stellar_spectrum_comparison
+    stellar_diagnostic = plot_stellar_spectrum_comparison(
+        out, unbroadened_wave, unbroadened_flux, sw, sf, vsini,
+        instrument_resolution=resolution)
+    print(f'Stellar spectrum comparison: {stellar_diagnostic}')
     # Broaden the POSEIDON transmission to instrument resolution (without planetary rotation).
     pw, pf = broaden_spectrum(pw, pf, resolution=resolution)
     use_snr = float(snr) if snr is not None else cfg.get_float('SNR', 100.0)
@@ -317,10 +319,7 @@ def run(config_path, stellar_npz, *, output=None, snr=None, seed=42, overwrite=F
     results = simulate_orders(orders, sw, sf, pw, pf, rv_star, rv_planet,
                               weight, snr=use_snr, seed=seed,
                               stellar_observer_frame=False, **extra)
-    # The constant-SNR backend specifies a nominal per-exposure S/N.
-    plot_observing_conditions(
-        conditions, diagnostic / 'observing_conditions.png',
-        snr_per_exposure=np.full(len(schedule.midpoint_jd_utc), use_snr))
+    plot_observing_conditions(conditions, diagnostic / 'observing_conditions.png')
     written = write_spectral_orders(results, out, overwrite=overwrite)
     # Mandatory quick-look diagnostic: verify that an actual order was synthesized.
     import matplotlib
