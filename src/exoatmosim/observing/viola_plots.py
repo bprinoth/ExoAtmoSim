@@ -45,3 +45,38 @@ def plot_viola_diagnostics(output_dir, wavelength_nm, stellar_e, model_e,
         fig.savefig(out / 'viola_spectral_comparison.png', dpi=160)
         plt.close(fig)
     return out / 'viola_spectral_comparison.png'
+
+
+def plot_stellar_rotation(output_dir, original_wave_nm, original_flux,
+                          rotated_wave_nm, rotated_flux, vsini_kms):
+    """Compare unbroadened and rotationally broadened rest-frame PHOENIX flux."""
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    from ..plotting import publication_style
+
+    original_wave_nm = np.asarray(original_wave_nm, float)
+    original_flux = np.asarray(original_flux, float)
+    rotated_wave_nm = np.asarray(rotated_wave_nm, float)
+    rotated_flux = np.asarray(rotated_flux, float)
+    if (original_wave_nm.ndim != 1 or rotated_wave_nm.ndim != 1 or
+            original_wave_nm.shape != original_flux.shape or
+            rotated_wave_nm.shape != rotated_flux.shape or
+            not all(np.isfinite(a).all() for a in
+                    (original_wave_nm, original_flux, rotated_wave_nm, rotated_flux))):
+        raise ValueError('Invalid stellar rotation diagnostic arrays')
+    out = Path(output_dir) / 'diagnostics' / 'stellar_rotation_comparison.png'
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with publication_style():
+        fig, ax = plt.subplots(figsize=(12, 5))
+        ax.plot(original_wave_nm, original_flux, lw=.75, alpha=.7, label='PHOENIX (unbroadened)')
+        ax.plot(rotated_wave_nm, rotated_flux, lw=.75,
+                label=rf'PHOENIX rotated ($v\\sin i$ = {vsini_kms:g} km/s)')
+        ax.set(xlabel='Air wavelength [nm]',
+               ylabel=r'Stellar flux [erg s$^{-1}$ cm$^{-2}$ nm$^{-1}$]',
+               title='Stellar rotational broadening (before instrument LSF)')
+        ax.legend(loc='best')
+        fig.tight_layout()
+        fig.savefig(out, dpi=180)
+        plt.close(fig)
+    return out
