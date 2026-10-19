@@ -90,7 +90,13 @@ class ViolaNativeTests(unittest.TestCase):
             wave, line, resolution=None, vsini_kms=5.)
         combined_wave, combined = broaden_spectrum(
             rotated_wave, rotated, resolution=300000.)
-        self.assertGreater(np.min(combined), np.min(instrumental))
+        # fastRotBroad uses a finite convolution window: its boundary pixels
+        # can be depressed by edge padding. Compare the isolated line core,
+        # not minima across the full wavelength interval.
+        core_instrument = np.abs(instrumental_wave - 2100.5) < 0.06
+        core_combined = np.abs(combined_wave - 2100.5) < 0.06
+        self.assertGreater(np.min(combined[core_combined]),
+                           np.min(instrumental[core_instrument]))
         self.assertTrue(np.isfinite(combined).all())
 
 if __name__=='__main__': unittest.main()
