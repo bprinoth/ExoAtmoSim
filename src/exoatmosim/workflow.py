@@ -105,9 +105,10 @@ def calculate_template(config: str | Path, *, species: str, seed: int = 42,
 
     Preserve the calculated T-P profile, target VMR, and background bulk
     species; remove other trace absorbers without renormalizing abundances.
-    Uses the same wavelength grid and FITS schema as `spectrum`.
+    Uses the same wavelength grid and FITS schema as `spectrum`, but
+    stores POSEIDON transit depth T rather than the usual 1 - T.
     """
-    from .poseidon import TransmissionRun
+    from .poseidon import TransmissionRun, TransmissionSpectrum
     from .profiles import AbundanceProfile
     from .spectrum_fits import write_spectrum_fits
 
@@ -140,7 +141,10 @@ def calculate_template(config: str | Path, *, species: str, seed: int = 42,
     transmission = np.asarray(spectrum.transmission, float)
     if not np.isfinite(transmission).all():
         raise ValueError('Species template transmission must be finite')
-    return write_spectrum_fits(spectrum, destination, overwrite=overwrite,
+    # The POSEIDON adapter returns 1 - T for the standard planet model.
+    # Templates require the un-inverted transit depth T instead.
+    transit_depth = TransmissionSpectrum(spectrum.wavelength_um, 1.0 - transmission)
+    return write_spectrum_fits(transit_depth, destination, overwrite=overwrite,
                                config_path=path)
 
 
