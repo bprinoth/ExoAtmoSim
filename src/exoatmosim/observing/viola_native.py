@@ -142,15 +142,17 @@ def sample_viola_pwv(schedule, *, mean_mm=2.5, sigma_mm=0.5,
             or np.any(np.diff(times) <= 0) or not np.isfinite([mean_mm, sigma_mm, timescale_minutes]).all()
             or mean_mm <= 0 or sigma_mm < 0 or timescale_minutes <= 0):
         raise ValueError('Invalid VIOLA PWV schedule or parameters')
-    from .viola_plots import plot_stellar_rotation
-    stellar_diagnostic = plot_stellar_rotation(
+    from .viola_plots import plot_stellar_spectrum_comparison
+    stellar_diagnostic = plot_stellar_spectrum_comparison(
         output_dir, star.wavelength_nm, original_stellar_flux,
         star_wave, star_shape, vsini)
     print(f'Stellar spectrum comparison: {stellar_diagnostic}')
     # Remove legacy duplicate only when regenerating an existing observation.
-    old_planet_plot = output_dir / 'diagnostics' / 'planet_transmission.png'
-    if overwrite and old_planet_plot.exists():
-        old_planet_plot.unlink()
+    if overwrite:
+        for old_name in ('planet_transmission.png', 'viola_spectral_comparison.png'):
+            old_plot = output_dir / 'diagnostics' / old_name
+            if old_plot.exists():
+                old_plot.unlink()
     rng = np.random.default_rng(seed)
     z = np.empty(len(times))
     z[0] = rng.normal() if sigma_mm else 0.
@@ -357,9 +359,7 @@ def make_native_viola_observation(schedule, rv_star, rv_planet, transit_weight,
                          'BUNIT':'nm' if filename.startswith('wave') else
                                  'dimensionless' if filename.startswith('snr') else 'electron/resel'})
         fits.writeto(output_dir/filename,array,header=hdr,overwrite=overwrite)
-    from .viola_plots import plot_viola_diagnostics
-    plot_viola_diagnostics(output_dir, grid, data['stellar_flux_0.fits'],
-                           data['model_flux_0.fits'], pw, pf, weight)
+    # No redundant VIOLA spectral comparison; POSEIDON already has its plot.
     metadata={'backend':'VIOLA_NATIVE_PHOENIX_HDF5_ETC_V0.5', 'instrument':instrument,
               'telescope_diameter_m':8.0,
               'resolving_power':resolution,'stellar_vsini_kms':vsini,'magnitude':magnitude,'magnitude_system':'Vega',
