@@ -142,6 +142,13 @@ def sample_viola_pwv(schedule, *, mean_mm=2.5, sigma_mm=0.5,
             or np.any(np.diff(times) <= 0) or not np.isfinite([mean_mm, sigma_mm, timescale_minutes]).all()
             or mean_mm <= 0 or sigma_mm < 0 or timescale_minutes <= 0):
         raise ValueError('Invalid VIOLA PWV schedule or parameters')
+    from .viola_plots import plot_stellar_rotation
+    plot_stellar_rotation(output_dir, star.wavelength_nm, original_stellar_flux,
+                          star_wave, star_shape, vsini)
+    # Remove legacy duplicate only when regenerating an existing observation.
+    old_planet_plot = output_dir / 'diagnostics' / 'planet_transmission.png'
+    if overwrite and old_planet_plot.exists():
+        old_planet_plot.unlink()
     rng = np.random.default_rng(seed)
     z = np.empty(len(times))
     z[0] = rng.normal() if sigma_mm else 0.
@@ -258,9 +265,6 @@ def make_native_viola_observation(schedule, rv_star, rv_planet, transit_weight,
             star.wavelength_nm, star_shape, resolution=None, vsini_kms=vsini)
     else:
         star_wave = star.wavelength_nm
-    from .viola_plots import plot_stellar_rotation
-    plot_stellar_rotation(output_dir, star.wavelength_nm, original_stellar_flux,
-                          star_wave, star_shape, vsini)
     # PWV is sampled once per exposure and used for the SkyCalc background.
     # The external HDF5 library was generated with its own atmospheric profile;
     # PWV (mm) is NOT interchangeable with RH (%).
