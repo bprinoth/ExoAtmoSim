@@ -118,6 +118,15 @@ def calculate_spectrum(config: str | Path, *, backend: str = 'poseidon',
             # FITS convention stores transit depth directly.
             depth = TransmissionSpectrum(template.wavelength_um,
                                          1.0 - np.asarray(template.transmission))
+            # A flat opacity contribution is unusable for cross-correlation.
+            # Refuse to silently produce a featureless template.
+            values = np.asarray(depth.transmission, float)
+            amplitude = float(np.ptp(values))
+            if amplitude <= 1e-12:
+                raise ValueError(
+                    f'{name} opacity contribution is flat (peak-to-peak '
+                    f'{amplitude:.3g}); check its abundance and POSEIDON '
+                    'spectral_contribution semantics before using the template')
             destination = run_dir / 'templates' / f'{name}.fits'
             write_spectrum_fits(depth, destination, overwrite=overwrite,
                                 config_path=path)
@@ -169,6 +178,8 @@ def calculate_template(config: str | Path, *, species: str, seed: int = 42,
     # The POSEIDON adapter returns 1 - T for the standard planet model.
     # Templates require the un-inverted transit depth T instead.
     transit_depth = TransmissionSpectrum(spectrum.wavelength_um, 1.0 - transmission)
+    if np.ptp(transit_depth.transmission) <= 1e-12:
+        raise ValueError(f'{species} opacity contribution is flat; cannot use as CCF template')
     result = write_spectrum_fits(transit_depth, destination, overwrite=overwrite,
                                  config_path=path)
     with publication_style():
