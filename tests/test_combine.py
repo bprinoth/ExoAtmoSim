@@ -76,7 +76,9 @@ def test_snr_squared_weighted_average():
         root = Path(temp)
         make_input(root, 'VIOLA_J', 1, 'O2', 10., snr=10.)
         make_input(root, 'VIOLA_H', 1, 'O2', 20., snr=20.)
-        with patch('exoatmosim.cc.expected_planet_kp', return_value=191.862):
+        with patch('exoatmosim.cc.expected_planet_kp', return_value=191.862), \
+             patch('POSEIDON.high_res.plot_CCF_Kp_Vsys',
+                   side_effect=fake_poseidon_plot):
             result = combine_maps('WASP-189 b', instruments=('VIOLA_J', 'VIOLA_H'),
                                   seeds=(1,), species=('O2',), data_dir=root)
         np.testing.assert_allclose(fits.getdata(result / 'O2' / 'kp_vsys.fits'), 18.)
