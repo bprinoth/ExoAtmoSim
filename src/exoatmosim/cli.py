@@ -30,6 +30,8 @@ def main(argv=None):
     spectrum.add_argument('--backend', default='poseidon', choices=['poseidon'])
     spectrum.add_argument('--seed', type=int, default=42)
     spectrum.add_argument('--overwrite', action='store_true')
+    spectrum.add_argument('--create-templates', action='store_true',
+                          help='Generate all non-bulk species templates in the same POSEIDON run')
     cc = sub.add_parser('cc', help='Prepare and cross-correlate existing observed spectra')
     cc.add_argument('config', type=Path)
     cc.add_argument('--seed', type=int, default=42)
@@ -85,7 +87,8 @@ def main(argv=None):
                 overwrite=args.overwrite)
     elif args.command == 'spectrum':
         result = workflow.calculate_spectrum(args.config, backend=args.backend,
-                                             seed=args.seed, overwrite=args.overwrite)
+                                             seed=args.seed, overwrite=args.overwrite,
+                                             create_templates=args.create_templates)
     else:
         result = workflow.simulate_observation(args.config, seed=args.seed,
                 snr=args.snr, stellar_npz=args.stellar_npz, overwrite=args.overwrite)
