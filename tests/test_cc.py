@@ -21,6 +21,20 @@ class CrossCorrelationTests(unittest.TestCase):
         self.assertTrue(np.isfinite(phi).all())
         self.assertGreater(abs(phi[1] - phi[0]), abs(phi[2] - phi[1]))
 
+    def test_anomaly_unwrap_preserves_eccentric_rv_across_transit(self):
+        # GJ 1132 b: omega places conjunction near the +/-pi branch cut.
+        omega = np.deg2rad(264.2)
+        tc, period, ecc = 2459280.98988, 1.62892911, .0118
+        jd = tc + np.linspace(-.04, .04, 101)
+        f = true_anomaly(jd, tc, period, ecc, omega)
+        self.assertLess(np.max(np.abs(np.diff(f))), .1)
+        self.assertAlmostEqual(np.cos(f[50] + omega), 0., delta=1e-10)
+        # Unwrapping changes the coordinate, not the Keplerian RV model.
+        canonical = (f + np.pi) % (2 * np.pi) - np.pi
+        rv = np.cos(f + omega) + ecc * np.cos(omega)
+        wrapped_rv = np.cos(canonical + omega) + ecc * np.cos(omega)
+        np.testing.assert_allclose(rv, wrapped_rv, atol=1e-12)
+
     def test_rejects_invalid_eccentricity(self):
         with self.assertRaises(ValueError):
             true_anomaly(np.array([2450000.]), 2450000., 1., 1., 0.)
