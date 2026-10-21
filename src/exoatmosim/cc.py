@@ -292,17 +292,34 @@ def cross_correlate_run(config, *, seed=42, sysrem=5, species=('O2','O3','H2O'),
     kp = np.arange(-300., 301., 1.)
     vsys = np.arange(-200., 201., 1.)
     rv = np.arange(-500., 501., 1.)
-    # Eccentric POSEIDON variants must accept these keywords; refusing to
-    # silently use a circular CCF prevents physically incorrect Kp maps.
+    # Support both keyword-driven CCF implementations and POSEIDON forks
+    # that read orbital elements from the first 'dp' (run directory) argument.
     params = inspect.signature(cross_correlate).parameters
     print(f'POSEIDON cross_correlate: {inspect.getfile(cross_correlate)}')
     print(f'POSEIDON signature: {inspect.signature(cross_correlate)}')
     kwargs = {}
     if abs(metadata['eccentricity']) > 1e-12:
-        if not {'ecc', 'omega_rad'} <= set(params):
-            raise RuntimeError('Installed POSEIDON cross_correlate lacks eccentric-orbit '
-                               'arguments ecc and omega_rad; verify its API before using true anomaly')
-        kwargs = {'ecc': metadata['eccentricity'], 'omega_rad': metadata['omega_rad']}
+        if {'ecc', 'omega_rad'} <= set(params):
+            kwargs = {'ecc': metadata['eccentricity'],
+                      'omega_rad': metadata['omega_rad']}
+        elif 'dp' in params:
+            # The Mantis POSEIDON fork reads ecc/omega from dp/config
+            # internally. Do not pass unsupported keyword arguments.
+            try:
+                source = inspect.getsource(cross_correlate)
+            except (OSError, TypeError) as exc:
+                raise RuntimeError(
+                    'Cannot inspect the eccentric correction in POSEIDON; '
+                    'verify the implementation before running') from exc
+            if not all(token in source for token in ('ecc', 'omega_rad', 'np.cos')):
+                raise RuntimeError(
+                    'POSEIDON dp interface found, but no recognizable eccentric '
+                    'true-anomaly correction in cross_correlate source')
+            print('Using POSEIDON eccentric velocity correction from dp/config')
+        else:
+            raise RuntimeError(
+                'Installed POSEIDON cross_correlate lacks support for eccentric '
+                'velocity corrections (ecc/omega_rad or dp configuration)')
     with plt.rc_context({'figure.constrained_layout.use': False,
                          'figure.autolayout': False}):
         for molecule in species:
