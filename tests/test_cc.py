@@ -49,6 +49,20 @@ class CrossCorrelationTests(unittest.TestCase):
             np.testing.assert_allclose(
                 read_observation_berv(d), [21.69844816, 21.68244106])
 
+    def test_template_wavelengths_convert_to_vacuum(self):
+        import tempfile
+        from astropy.io import fits
+        from exoatmosim.cc import _template
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'O2.fits'
+            air_nm = np.linspace(1500., 1501., 100)
+            fits.HDUList([fits.PrimaryHDU(np.zeros(1)),
+                          fits.ImageHDU(air_nm),
+                          fits.ImageHDU(np.linspace(.01, .02, 100))]).writeto(path)
+            vacuum_um, _ = _template(path)
+            self.assertTrue(np.all(vacuum_um > air_nm / 1000.))
+            self.assertTrue(np.all(np.diff(vacuum_um) > 0))
+
     def test_cli_routes_stage(self):
         from exoatmosim.cli import main
         with patch('exoatmosim.cc.cross_correlate_run', return_value=Path('cc')) as fn:
