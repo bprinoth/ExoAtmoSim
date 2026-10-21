@@ -116,8 +116,13 @@ def read_observing_conditions(path, schedule=None):
     return table
 
 
-def plot_observing_conditions(table, path):
-    """Plot atmospheric water content and airmass (no nominal S/N panel)."""
+def plot_observing_conditions(table, path, *, snr_fits=None):
+    """Plot PWV (or humidity), airmass, and optional per-exposure VIOLA S/N.
+
+    The VIOLA native backend writes a wavelength-dependent S/N per resolution
+    element in snr_res_0.fits. Plot the median over finite positive wavelength
+    pixels for each exposure, avoiding a misleading single-pixel S/N.
+    """
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
@@ -126,9 +131,20 @@ def plot_observing_conditions(table, path):
     path.parent.mkdir(parents=True, exist_ok=True)
     t = (np.asarray(table['midpoint_jd_utc'], float) -
          float(table['midpoint_jd_utc'][0])) * 24
+    snr = None
+    if snr_fits is not None:
+        from astropy.io import fits
+        snr_grid = np.asarray(fits.getdata(snr_fits), dtype=float)
+        if snr_grid.ndim != 2 or snr_grid.shape[0] != len(t):
+            raise ValueError('VIOLA S/N FITS must have shape (exposures, pixels)')
+        valid = np.isfinite(snr_grid) & (snr_grid > 0)
+        if not np.all(valid.any(axis=1)):
+            raise ValueError('Each exposure must contain valid positive S/N pixels')
+        snr = np.array([np.median(row[mask]) for row, mask in zip(snr_grid, valid)])
     with publication_style():
-        fig, axes = plt.subplots(2, 1, figsize=(10, 6), sharex=True,
-                                 constrained_layout=True)
+        fig, axes = plt.subplots(3 if snr is not None else 2, 1,
+                                 figsize=(10, 8 if snr is not None else 6),
+                                 sharex=True, constrained_layout=True)
         if 'pwv_mm' in table.colnames:
             axes[0].plot(t, table['pwv_mm'])
             axes[0].set_ylabel('PWV [mm]')
@@ -136,7 +152,11 @@ def plot_observing_conditions(table, path):
             axes[0].plot(t, table['humidity_percent'])
             axes[0].set_ylabel('Relative humidity [%]')
         axes[1].plot(t, table['airmass'])
-        axes[1].set(xlabel='Hours since first exposure', ylabel='Airmass')
+        axes[1].set_ylabel('Airmass')
+        if snr is not None:
+            axes[2].plot(t, snr, marker='o', markersize=3)
+            axes[2].set_ylabel('Median S/N / res. element')
+        axes[-1].set_xlabel('Hours since first exposure')
         fig.align_ylabels(axes)
         fig.savefig(path, dpi=180)
         plt.close(fig)
