@@ -293,7 +293,8 @@ class PoseidonTransmissionModel:
 
     def compute_transmission(self, *, name: str, config: Config, atmosphere: Atmosphere,
                              composition: Composition, bulk_species: str | tuple[str, ...],
-                             opacity_species: str | None = None) -> TransmissionSpectrum:
+                             opacity_species: str | None = None,
+                             template_species: tuple[str, ...] | None = None):
         """Run legacy POSEIDON transmission calculation (expensive; unverified backend integration)."""
         star = Star.from_config(config)
         planet = Planet.from_config(config)
@@ -341,14 +342,17 @@ class PoseidonTransmissionModel:
         fine_log_p = np.linspace(log_p_min, log_p_max,
                                  int(np.ceil((log_p_max-log_p_min)/0.2)) + 1)
         opacities = read_opacities(model, wl, 'opacity_sampling', fine_t, fine_log_p)
-        if opacity_species is None:
-            spectrum = compute_spectrum(poseidon_planet, poseidon_star, model,
-                                         poseidon_atmosphere, opacities, wl,
-                                         spectrum_type='transmission', save_spectrum=False)
-        else:
-            if opacity_species in bulk or opacity_species not in param_species:
-                raise ValueError(f'Opacity species {opacity_species!r} must be a trace gas '
-                                 'in the original full atmosphere')
+        if template_species is not None and opacity_species is not None:
+            raise ValueError('Select either opacity_species or template_species')
+        requested = ((opacity_species,) if opacity_species is not None else
+                     tuple(template_species or ()))
+        if any(species in bulk or species not in param_species for species in requested):
+            raise ValueError('Template opacity species must be non-bulk gases in '
+                             'the complete atmosphere')
+        if len(set(requested)) != len(requested):
+            raise ValueError('Template species must be unique')
+
+        def contributions(names):
             try:
                 from POSEIDON.contributions import spectral_contribution
                 import inspect
@@ -357,26 +361,39 @@ class PoseidonTransmissionModel:
                     raise RuntimeError('POSEIDON spectral_contribution lacks required '
                                        'species/bulk opacity selection arguments')
             except ImportError as exc:
-                raise RuntimeError('This POSEIDON installation lacks spectral_contribution; '
-                                   'cannot construct fixed-structure species templates') from exc
-            _, labels, component_spectra = spectral_contribution(
+                raise RuntimeError('POSEIDON spectral_contribution is required for '
+                                   'fixed-structure templates') from exc
+            _, labels, spectra = spectral_contribution(
                 poseidon_planet, poseidon_star, model, poseidon_atmosphere,
                 opacities, wl, spectrum_type='transmission',
-                save_spectrum=False, contribution_species_list=[opacity_species],
+                save_spectrum=False, contribution_species_list=list(names),
                 bulk_species=False)
             labels = [str(label) for label in labels]
-            matching = [i for i, label in enumerate(labels)
-                        if label == opacity_species]
-            if len(matching) != 1:
-                raise RuntimeError(f'POSEIDON did not return exactly one {opacity_species} '
-                                   f'contribution; returned {labels}')
-            spectrum = np.asarray(component_spectra)[matching[0]]
-            if np.asarray(spectrum).size != len(wl):
-                raise RuntimeError('POSEIDON species contribution has unexpected shape')
+            arrays = np.asarray(spectra, float)
+            if arrays.shape != (len(labels), len(wl)):
+                raise RuntimeError('Unexpected POSEIDON contribution array shape '
+                                   f'{arrays.shape}; expected ({len(labels)}, {len(wl)})')
+            result = {}
+            for name in names:
+                indices = [i for i, label in enumerate(labels) if label == name]
+                if len(indices) != 1:
+                    raise RuntimeError(f'POSEIDON returned {labels} instead of one '
+                                       f'contribution for {name}')
+                result[name] = TransmissionSpectrum(np.asarray(wl),
+                                                     1.0 - arrays[indices[0]])
+            return result
 
-        # Legacy run_poseidon.py saved (1-spectrum); its exact scientific meaning
-        # must be checked against the user's installed POSEIDON version.
-        return TransmissionSpectrum(np.asarray(wl), 1.0 - np.asarray(spectrum).squeeze())
+        if opacity_species is not None:
+            return contributions(requested)[opacity_species]
+
+        spectrum = compute_spectrum(poseidon_planet, poseidon_star, model,
+                                     poseidon_atmosphere, opacities, wl,
+                                     spectrum_type='transmission', save_spectrum=False)
+        full = TransmissionSpectrum(np.asarray(wl),
+                                    1.0 - np.asarray(spectrum).squeeze())
+        if template_species is not None:
+            return full, contributions(requested) if requested else {}
+        return full
 
 
 @dataclass(frozen=True)
