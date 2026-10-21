@@ -53,3 +53,28 @@ verify your separate editable POSEIDON installation.
 plotting placeholders. They are not physical estimates. The CCF frame and
 velocity sign must be validated before interpreting any detection. Results
 are exploratory, not calibrated detection significances.
+
+## Combining VIOLA bands and seeds
+
+Once the individual `cc` runs have produced maps for each requested band
+and seed, combine them without re-running POSEIDON:
+
+```bash
+exoatmosim combine --planet "WASP-189 b" \
+  --instruments VIOLA_J VIOLA_H VIOLA_K \
+  --seeds 1 2 3 4 --sysrem 5 --species O2 O3 H2O
+```
+
+For every molecule, all twelve instrument–seed maps are summed. Outputs are
+under `data/WASP-189_b/combined/sysrem_5/{species}/` and contain the raw
+summed map, Kp and Vsys axes, a figure, and `combination.json` provenance.
+The command fails if an input is absent or the velocity grids differ. It does
+not normalize maps or interpret their sum as a calibrated detection significance.
+Use `--data-dir /data/bibi/VIOLA/data` for simulations stored outside the
+repository. `--overwrite` regenerates the combined products.
+
+For eccentric orbits, the Mantis POSEIDON fork accepts `dp` as its first
+argument and reads `ecc` and `omega` from the seed config internally.
+The CC stage recognizes this variant, checks that its source contains the
+eccentric-velocity correction, and does not pass unsupported keyword arguments.
+Always verify the model's sign and frame conventions using an injected signal.
