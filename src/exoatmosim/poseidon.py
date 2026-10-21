@@ -292,7 +292,8 @@ class PoseidonTransmissionModel:
             raise ValueError('POSEIDON requires Rs, Teff and stellar logg')
 
     def compute_transmission(self, *, name: str, config: Config, atmosphere: Atmosphere,
-                             composition: Composition, bulk_species: str | tuple[str, ...]) -> TransmissionSpectrum:
+                             composition: Composition, bulk_species: str | tuple[str, ...],
+                             opacity_species: str | None = None) -> TransmissionSpectrum:
         """Run legacy POSEIDON transmission calculation (expensive; unverified backend integration)."""
         star = Star.from_config(config)
         planet = Planet.from_config(config)
@@ -340,9 +341,39 @@ class PoseidonTransmissionModel:
         fine_log_p = np.linspace(log_p_min, log_p_max,
                                  int(np.ceil((log_p_max-log_p_min)/0.2)) + 1)
         opacities = read_opacities(model, wl, 'opacity_sampling', fine_t, fine_log_p)
-        spectrum = compute_spectrum(poseidon_planet, poseidon_star, model,
-                                     poseidon_atmosphere, opacities, wl,
-                                     spectrum_type='transmission', save_spectrum=False)
+        if opacity_species is None:
+            spectrum = compute_spectrum(poseidon_planet, poseidon_star, model,
+                                         poseidon_atmosphere, opacities, wl,
+                                         spectrum_type='transmission', save_spectrum=False)
+        else:
+            if opacity_species in bulk or opacity_species not in param_species:
+                raise ValueError(f'Opacity species {opacity_species!r} must be a trace gas '
+                                 'in the original full atmosphere')
+            try:
+                from POSEIDON.contributions import spectral_contribution
+                import inspect
+                params = inspect.signature(spectral_contribution).parameters
+                if not {'contribution_species_list', 'bulk_species'} <= set(params):
+                    raise RuntimeError('POSEIDON spectral_contribution lacks required '
+                                       'species/bulk opacity selection arguments')
+            except ImportError as exc:
+                raise RuntimeError('This POSEIDON installation lacks spectral_contribution; '
+                                   'cannot construct fixed-structure species templates') from exc
+            _, labels, component_spectra = spectral_contribution(
+                poseidon_planet, poseidon_star, model, poseidon_atmosphere,
+                opacities, wl, spectrum_type='transmission',
+                save_spectrum=False, contribution_species_list=[opacity_species],
+                bulk_species=False)
+            labels = [str(label) for label in labels]
+            matching = [i for i, label in enumerate(labels)
+                        if label == opacity_species]
+            if len(matching) != 1:
+                raise RuntimeError(f'POSEIDON did not return exactly one {opacity_species} '
+                                   f'contribution; returned {labels}')
+            spectrum = np.asarray(component_spectra)[matching[0]]
+            if np.asarray(spectrum).size != len(wl):
+                raise RuntimeError('POSEIDON species contribution has unexpected shape')
+
         # Legacy run_poseidon.py saved (1-spectrum); its exact scientific meaning
         # must be checked against the user's installed POSEIDON version.
         return TransmissionSpectrum(np.asarray(wl), 1.0 - np.asarray(spectrum).squeeze())
