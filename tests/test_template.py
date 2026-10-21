@@ -68,7 +68,7 @@ class TemplateTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             config = Path(temp) / 'planet' / 'config'
             config.parent.mkdir()
-            config.write_text('instrument CRIRES_K\\n')
+            config.write_text('instrument CRIRES_K\n')
             p = np.array([1e-5, 1.])
             abundance = AbundanceProfile(p, {
                 'H2': np.array([.8, .8]),
@@ -77,7 +77,7 @@ class TemplateTests(unittest.TestCase):
                 'O3': np.array([1e-7, 1e-7]),
             }, ('H2', 'He'))
             full = SimpleNamespace(wavelength_um=np.array([1., 1.1]),
-                                   transmission=np.array([.992, .991]))
+                                   transmission=np.array([.992, .991]), plot=lambda *a, **k: None)
             water = SimpleNamespace(wavelength_um=np.array([1., 1.1]),
                                     transmission=np.array([.992, .990]))
             ozone = SimpleNamespace(wavelength_um=np.array([1., 1.1]),
@@ -87,15 +87,15 @@ class TemplateTests(unittest.TestCase):
                 call.append(kwargs)
                 return full, {'H2O': water, 'O3': ozone}
             run = SimpleNamespace(abundances=abundance, name='planet', config=object(),
-                                  atmosphere=object(), model=SimpleNamespace(
+                                  atmosphere=object(), save=lambda *a, **k: None, model=SimpleNamespace(
                                       compute_transmission=compute))
             written = {}
             def save_fits(spectrum, destination, **kwargs):
                 written[Path(destination).name] = np.asarray(spectrum.transmission)
                 return destination
-            with patch('exoatmosim.poseidon.TransmissionRun.from_config', return_value=run), \\
-                 patch('exoatmosim.spectrum_fits.write_spectrum_fits', side_effect=save_fits), \\
-                 patch('exoatmosim.poseidon.TransmissionSpectrum.plot'), \\
+            with patch('exoatmosim.poseidon.TransmissionRun.from_config', return_value=run), \
+                 patch('exoatmosim.spectrum_fits.write_spectrum_fits', side_effect=save_fits), \
+                 patch('exoatmosim.poseidon.TransmissionSpectrum.plot'), \
                  patch('exoatmosim.workflow.publication_style'):
                 workflow.calculate_spectrum(config, create_templates=True)
             self.assertEqual(len(call), 1)
