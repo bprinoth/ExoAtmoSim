@@ -54,7 +54,9 @@ def combine_maps(planet, *, instruments, seeds, species=('O2', 'O3', 'H2O'),
                 raise ValueError(f'Invalid CCF or velocity axes: {paths[0]}')
             if reference_axes is None:
                 reference_axes = (kp, vsys)
-            elif not (np.allclose(kp, reference_axes[0], atol=1e-9, rtol=0) and
+            elif not (kp.shape == reference_axes[0].shape and
+                      vsys.shape == reference_axes[1].shape and
+                      np.allclose(kp, reference_axes[0], atol=1e-9, rtol=0) and
                       np.allclose(vsys, reference_axes[1], atol=1e-9, rtol=0)):
                 raise ValueError(f'Incompatible Kp/Vsys axes: {paths[0]}')
             maps.append(image)
