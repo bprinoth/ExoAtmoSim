@@ -116,10 +116,13 @@ def combine_maps(planet, *, instruments, seeds, species=('O2', 'O3', 'H2O'),
         # never display that unphysical region.
         with plt.rc_context({'figure.constrained_layout.use': False,
                              'figure.autolayout': False}):
-            fig, _ = plot_CCF_Kp_Vsys(
+            plot_CCF_Kp_Vsys(
                 kp, vsys, CCF_Kp_Vsys=combined, label=molecule,
                 Kp_expected=kp_expected, Vsys_expected=0.,
                 plot_slice=True, save_file_path=None)
+            # POSEIDON versions may return pyplot (whose .axes is a function)
+            # rather than a Figure. The active Matplotlib figure is reliable.
+            fig = plt.gcf()
             for ax in fig.axes:
                 if ax.get_xlabel():
                     ax.set_xlabel('Vsys [km/s]')
