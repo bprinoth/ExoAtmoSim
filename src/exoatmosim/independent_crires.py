@@ -135,11 +135,19 @@ def run(config_path, stellar_npz, *, output=None, snr=None, seed=42, overwrite=F
     run_manifest_path = out / 'run_manifest.json'
     if run_manifest_path.exists():
         previous = json.loads(run_manifest_path.read_text())
-        if (previous.get('config_sha256') != cfg_digest or
-            previous.get('instrument') != instrument or
+        if (previous.get('instrument') != instrument or
             previous.get('noise_seed') != seed):
-            raise ValueError('Existing simulation run has different instrument, seed or config. '
-                             'Select another --output directory or --seed; refusing to mix results.')
+            raise ValueError('Existing simulation run has a different instrument or seed. '
+                             'Select a matching output directory; refusing to mix results.')
+        if previous.get('config_sha256') != cfg_digest:
+            if not overwrite:
+                raise ValueError('Existing simulation run has a different config. '
+                                 'Pass --overwrite to regenerate observations with '
+                                 'the updated config, or select another seed.')
+            print('[WARNING] --overwrite: replacing observation products made '
+                  'with a different config. The existing planetary spectrum '
+                  'and molecular templates are not regenerated; rerun spectrum '
+                  'and template separately if their inputs changed.')
     out.mkdir(parents=True, exist_ok=True)
     snapshot_path = out / 'config'
     original = config_path.read_bytes()
