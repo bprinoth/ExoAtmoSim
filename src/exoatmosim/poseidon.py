@@ -363,7 +363,7 @@ class PoseidonTransmissionModel:
             except ImportError as exc:
                 raise RuntimeError('POSEIDON spectral_contribution is required for '
                                    'fixed-structure templates') from exc
-            _, labels, spectra = spectral_contribution(
+            raw_full, labels, spectra = spectral_contribution(
                 poseidon_planet, poseidon_star, model, poseidon_atmosphere,
                 opacities, wl, spectrum_type='transmission',
                 save_spectrum=False, contribution_species_list=list(names),
@@ -381,19 +381,20 @@ class PoseidonTransmissionModel:
                                        f'contribution for {name}')
                 result[name] = TransmissionSpectrum(np.asarray(wl),
                                                      1.0 - arrays[indices[0]])
-            return result
+            return TransmissionSpectrum(np.asarray(wl),
+                                        1.0 - np.asarray(raw_full).squeeze()), result
 
         if opacity_species is not None:
-            return contributions(requested)[opacity_species]
+            return contributions(requested)[1][opacity_species]
 
+        if template_species is not None and requested:
+            return contributions(requested)
         spectrum = compute_spectrum(poseidon_planet, poseidon_star, model,
                                      poseidon_atmosphere, opacities, wl,
                                      spectrum_type='transmission', save_spectrum=False)
         full = TransmissionSpectrum(np.asarray(wl),
                                     1.0 - np.asarray(spectrum).squeeze())
-        if template_species is not None:
-            return full, contributions(requested) if requested else {}
-        return full
+        return (full, {}) if template_species is not None else full
 
 
 @dataclass(frozen=True)
