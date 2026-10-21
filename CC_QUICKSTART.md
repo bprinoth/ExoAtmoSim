@@ -94,3 +94,26 @@ This feature requires a POSEIDON installation exposing the documented
 `spectral_contribution` interface. Validate it with a known injection on the
 installed POSEIDON fork; the Mantis POSEIDON variant has not been executed
 within this PR update.
+
+## One-pass full spectrum and molecular templates
+
+Avoid repeatedly loading the same high-resolution opacity grids by running:
+
+```bash
+exoatmosim spectrum data/TRAPPIST-1_b/config_viola_k \\
+  --seed 0 --create-templates --overwrite
+```
+
+This constructs the complete atmospheric composition and mean molecular weight
+once, reads the opacity grid once, and calls POSEIDON's
+`spectral_contribution` once with all non-bulk species. It saves the normal
+full-spectrum FITS plus `templates/<species>.fits` for each gas returned by
+the contribution routine. This avoids repeating those expensive setup steps,
+though each separate contribution still requires radiative-transfer work.
+
+The program fails if a contribution is nonfinite, flat (peak-to-peak depth
+≤ 1e-12), or missing. A flat template is not useful for a CCF and should
+be investigated rather than artificially made nonzero. In particular, the
+underlying scientific reason for the previously reported flat template has
+not yet been verified on Mantis; `--create-templates` is a performance change,
+not proof that the individual contributions are physically correct.
