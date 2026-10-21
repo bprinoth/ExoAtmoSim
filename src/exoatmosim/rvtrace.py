@@ -198,7 +198,12 @@ class RVTraceEstimator:
         ecc_anomaly = ke.eccentricAnomaly(self.bjds)
         node = np.radians(self.pob)
 
-        self.true_anomaly = 2. * np.arctan(np.sqrt((1. + self.ecc) / (1. - self.ecc)) * np.tan(ecc_anomaly / 2.))
+        # Use arctan2 for quadrant safety, then unwrap along observation time.
+        # A 2*pi wrap is not a physical jump in radial velocity.
+        E = np.asarray(ecc_anomaly, float)
+        anomaly = 2. * np.arctan2(np.sqrt(1. + self.ecc) * np.sin(E / 2.),
+                                 np.sqrt(1. - self.ecc) * np.cos(E / 2.))
+        self.true_anomaly = np.unwrap(anomaly)
 
         # in matrix form
 
