@@ -193,7 +193,15 @@ def _template(path):
             not np.isfinite(wave).all() or not np.isfinite(depth).all() or
             np.any(np.diff(wave) <= 0)):
         raise ValueError(f'Invalid species template {path}')
-    return wave, depth - np.median(depth)
+    # ExoAtmoSim writes species-template wavelengths in AIR nm, even though
+    # the underlying POSEIDON model is computed on a vacuum-micron grid.
+    # The observed-order wavelengths are already air->vacuum converted by
+    # order_arrays(); make the templates use the very same conversion.
+    from tayph.operations import airtovac
+    vacuum_um = np.asarray(airtovac(wave * 1000.), float) / 1000.
+    if not np.isfinite(vacuum_um).all() or np.any(np.diff(vacuum_um) <= 0):
+        raise ValueError(f'Invalid vacuum-converted species template: {path}')
+    return vacuum_um, depth - np.median(depth)
 
 
 def cross_correlate_run(config, *, seed=42, sysrem=5, species=('O2','O3','H2O'),
