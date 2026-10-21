@@ -66,7 +66,7 @@ exoatmosim combine --planet "WASP-189 b" \
 
 The combined raw maps use an S/N²-weighted mean based on the median VIOLA
 S/N per exposure (equal-weight fallback when S/N files are missing). A separate
-POSEIDON-normalized map is plotted for nonnegative (K_p) with axes labelled
+ExoAtmoSim-native background-standardized map is plotted for nonnegative (K_p) with axes labelled
 `Vsys [km/s]` and `Kp [km/s]`. The statistical significance of the
 resulting visualization is **not** a calibrated false-alarm probability.
 See [CC_QUICKSTART.md](CC_QUICKSTART.md) for velocity-frame conventions,
@@ -358,3 +358,15 @@ DejaVu Sans; an explicit `EXOATMOSIM_FONT_PATH` or `publication_style(font_path=
 overrides the package default. Upstream font and license:
 https://github.com/google/fonts/tree/main/ofl/montserrat
 
+
+
+## Native cross-correlation figures
+
+The `cc` and `combine` stages now use native ExoAtmoSim plotting rather than
+POSEIDON's plotting functions. `phase_rv.png` is a compact true-anomaly versus
+RV diagnostic. `kp_vsys.png` contains a nonnegative-Kp map and a velocity
+slice through the expected Kp, with a compact colorbar and no legend.
+The plot-only score is (CCF − off-trail mean) / off-trail standard deviation,
+where off-trail refers to |Vsys| ≥ 50 km/s (phase–RV uses |RV| ≥ 250 km/s).
+These are **not** POSEIDON's exact per-map significance algorithm or
+calibrated detection significances. The raw FITS CCF arrays remain unchanged.
