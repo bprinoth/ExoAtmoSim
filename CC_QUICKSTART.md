@@ -68,8 +68,8 @@ exoatmosim combine --planet "WASP-189 b" \
 ```
 
 For every molecule, all twelve instrument–seed raw CCF maps are combined using an S/N-squared weighted mean (equal weights only when S/N FITS are absent). Outputs are
-under `data/WASP-189_b/combined/sysrem_5/{species}/` and contain the raw weighted-mean map, Kp and Vsys axes, a POSEIDON-normalized significance figure restricted to nonnegative Kp and labeled Vsys, and `combination.json` provenance.
-The command fails if an input is absent or the velocity grids differ. The FITS map remains in raw CCF units; the PNG uses POSEIDON's significance plotting normalization and is not by itself a calibrated false-alarm probability.
+under `data/WASP-189_b/combined/sysrem_5/{species}/` and contain the raw weighted-mean map, Kp and Vsys axes, a ExoAtmoSim-native background-standardized CCF figure restricted to nonnegative Kp and labeled Vsys, and `combination.json` provenance.
+The command fails if an input is absent or the velocity grids differ. The FITS map remains in raw CCF units; the PNG uses ExoAtmoSim's off-trail CCF background normalization and is not by itself a calibrated false-alarm probability.
 Use `--data-dir /data/bibi/VIOLA/data` for simulations stored outside the
 repository. `--overwrite` regenerates the combined products.
 
@@ -120,3 +120,15 @@ atmospheres can have genuinely negligible gas-phase abundances. Check the
 abundance profile before interpreting a flat contribution. The combined
 workflow reduces repeated opacity setup but does not guarantee detectable
 molecular features.
+
+
+## Native cross-correlation figures
+
+The `cc` and `combine` stages now use native ExoAtmoSim plotting rather than
+POSEIDON's plotting functions. `phase_rv.png` is a compact true-anomaly versus
+RV diagnostic. `kp_vsys.png` contains a nonnegative-Kp map and a velocity
+slice through the expected Kp, with a compact colorbar and no legend.
+The plot-only score is (CCF − off-trail mean) / off-trail standard deviation,
+where off-trail refers to |Vsys| ≥ 50 km/s (phase–RV uses |RV| ≥ 250 km/s).
+These are **not** POSEIDON's exact per-map significance algorithm or
+calibrated detection significances. The raw FITS CCF arrays remain unchanged.
