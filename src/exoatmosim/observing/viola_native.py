@@ -251,7 +251,14 @@ def make_native_viola_observation(schedule, rv_star, rv_planet, transit_weight,
         temperature = cfg.get_float('Teff')
         if not np.isfinite(temperature) or temperature <= 0:
             raise ValueError('BLACKBODY requires finite positive Teff [K]')
-        star_wave = high.copy()  # instrument/model wavelength convention: AIR nm
+        # Pad beyond the HIGH grid: each exposure queries high/(1 + RV/c).
+        # Even an otherwise featureless continuum needs shifted coverage.
+        padding = (1. + max(np.max(np.abs(rv_star)), 0.) / 299792.458)
+        star_wave = np.geomspace(high[0] / padding - 0.1,
+                                high[-1] * padding + 0.1,
+                                int(np.ceil(np.log((high[-1] * padding + 0.1) /
+                                                   (high[0] / padding - 0.1)) * r_sample)) + 1)
+        # Wavelength convention matches the VIOLA instrument grid: AIR nm.
         lam_m = star_wave * 1e-9
         exponent = H * C / (lam_m * K_B * temperature)
         surface_flux = (2. * H * C**2 / lam_m**5) / np.expm1(exponent)
@@ -335,7 +342,7 @@ def make_native_viola_observation(schedule, rv_star, rv_planet, transit_weight,
         rest_star = high/(1.+rv_star[i]/299792.458)
         rest_planet = high/(1.+rv_planet[i]/299792.458)
         if rest_star[0] < star_wave[0] or rest_star[-1] > star_wave[-1]:
-            raise ValueError('PHOENIX RV shifted beyond model coverage')
+            raise ValueError(f'{stellar_source} RV shifted beyond model coverage')
         stellar_high = np.interp(rest_star, star_wave, star_shape)
         planet_high = 1.+weight[i]*(np.interp(rest_planet,pw,pf,left=1.,right=1.)-1.)
         # Convolve the *combined* star x planet x atmosphere once.
