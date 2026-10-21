@@ -5,13 +5,38 @@ import json
 import numpy as np
 
 
+def _run_snr_weight(run):
+    """Median per-exposure VIOLA resolution-element S/N, squared.
+
+    No S/N file means equal weighting; malformed existing data are errors.
+    """
+    from astropy.io import fits
+    path = run / 'snr_res_0.fits'
+    if not path.is_file():
+        return 1.0, 'equal_weight_missing_snr'
+    values = np.asarray(fits.getdata(path), float)
+    if values.ndim != 2 or not values.size:
+        raise ValueError(f'Invalid S/N shape: {path}')
+    medians = []
+    for exposure in values:
+        valid = exposure[np.isfinite(exposure) & (exposure > 0)]
+        if not valid.size:
+            raise ValueError(f'No valid positive S/N for an exposure: {path}')
+        medians.append(float(np.median(valid)))
+    snr = float(np.median(medians))
+    weight = snr ** 2
+    if not np.isfinite(weight) or weight <= 0:
+        raise ValueError(f'Invalid S/N weight: {path}')
+    return weight, 'median_exposure_snr_squared'
+
+
 def combine_maps(planet, *, instruments, seeds, species=('O2', 'O3', 'H2O'),
                  sysrem=5, data_dir='data', overwrite=False):
-    """Sum raw CCF maps (not individually normalized detection significances).
+    """S/N-squared weighted mean of raw CCF maps.
 
     Every requested instrument/seed map must exist. Axes must agree exactly
     within floating-point tolerance. This is a sum of independent CCF
-    contributions, not a sigma-combined statistical significance estimate.
+    contributions, not a calibrated detection significance estimate.
     """
     from astropy.io import fits
     from .cc import expected_planet_kp
@@ -43,7 +68,7 @@ def combine_maps(planet, *, instruments, seeds, species=('O2', 'O3', 'H2O'),
                     if not path.is_file():
                         raise FileNotFoundError(f'Missing CCF product: {path}')
                 selected.append((run, paths))
-        maps, reference_axes = [], None
+        maps, weights, weight_info, reference_axes = [], [], {}, None
         for run, paths in selected:
             image, kp, vsys = (np.asarray(fits.getdata(p), float) for p in paths)
             if (kp.ndim != 1 or vsys.ndim != 1 or
@@ -60,6 +85,11 @@ def combine_maps(planet, *, instruments, seeds, species=('O2', 'O3', 'H2O'),
                       np.allclose(vsys, reference_axes[1], atol=1e-9, rtol=0)):
                 raise ValueError(f'Incompatible Kp/Vsys axes: {paths[0]}')
             maps.append(image)
+            weight, kind = _run_snr_weight(run)
+            weights.append(weight)
+            weight_info[f'{run.parent.name}/{run.name}'] = {
+                'weight': float(weight), 'weight_kind': kind,
+            }
         kp, vsys = reference_axes
         destination = output / molecule
         paths_out = [destination / name for name in ('kp_vsys.fits', 'kp_axis.fits',
@@ -67,15 +97,15 @@ def combine_maps(planet, *, instruments, seeds, species=('O2', 'O3', 'H2O'),
                                                        'combination.json')]
         if not overwrite and any(path.exists() for path in paths_out):
             raise FileExistsError(f'Combined output exists: {destination}; use --overwrite')
-        combined = np.sum(np.stack(maps), axis=0)
+        combined = np.average(np.stack(maps), axis=0, weights=np.asarray(weights))
         kp_expected = expected_planet_kp(selected[0][0] / 'config')
         for run, _ in selected[1:]:
             other = expected_planet_kp(run / 'config')
             if not np.isclose(other, kp_expected, rtol=1e-5):
                 raise ValueError(f'Inconsistent expected Kp across seeds: {run}')
-        files[molecule] = (selected, combined, kp, vsys, kp_expected, destination)
+        files[molecule] = (selected, combined, kp, vsys, kp_expected, destination, weight_info)
     # Validate every requested species before writing any output.
-    for molecule, (selected, combined, kp, vsys, kp_expected, dest) in files.items():
+    for molecule, (selected, combined, kp, vsys, kp_expected, dest, weight_info) in files.items():
         dest.mkdir(parents=True, exist_ok=True)
         for name, array in [('kp_vsys.fits', combined), ('kp_axis.fits', kp),
                             ('vsys_axis.fits', vsys)]:
@@ -85,19 +115,20 @@ def combine_maps(planet, *, instruments, seeds, species=('O2', 'O3', 'H2O'),
             extent = [vsys[0], vsys[-1], kp[0], kp[-1]]
             image = ax.imshow(combined, origin='lower', aspect='auto', extent=extent)
             ax.axhline(kp_expected, color='white', linestyle='--',
-                       linewidth=1, label=f'Expected Kp {kp_expected:.1f} km/s')
+                       linewidth=1)
             ax.axvline(0, color='white', linestyle=':', linewidth=1)
             ax.set(xlabel='Delta Vsys [km/s]', ylabel='Kp [km/s]',
                    title=f'{planet} — {molecule} — {len(selected)} CCF maps')
-            ax.legend(loc='upper right')
-            fig.colorbar(image, ax=ax, label='Sum of CCF values (arbitrary units)')
+            fig.colorbar(image, ax=ax, label='Weighted mean CCF (arbitrary units)')
             fig.savefig(dest / 'kp_vsys.png', dpi=180, bbox_inches='tight')
             plt.close(fig)
         (dest / 'combination.json').write_text(json.dumps({
             'planet': planet, 'molecule': molecule, 'sysrem': sysrem,
             'instruments': list(instruments), 'seeds': list(seeds),
             'n_maps': len(selected), 'expected_kp_kms': kp_expected,
-            'aggregation': 'sum_of_raw_ccf_maps',
+            'aggregation': 'weighted_mean_of_raw_ccf_maps',
+            'weight_kind': 'median_exposure_snr_squared_with_missing_file_equal_fallback',
+            'weights': weight_info,
             'inputs': [str(paths[0]) for _, paths in selected],
         }, indent=2) + '\n')
     return output
