@@ -116,7 +116,7 @@ def read_observing_conditions(path, schedule=None):
     return table
 
 
-def plot_observing_conditions(table, path, *, snr_fits=None):
+def plot_observing_conditions(table, path, *, snr_fits=None, tellurics_enabled=True):
     """Plot PWV (or humidity), airmass, and optional per-exposure VIOLA S/N.
 
     The VIOLA native backend writes a wavelength-dependent S/N per resolution
@@ -145,7 +145,12 @@ def plot_observing_conditions(table, path, *, snr_fits=None):
         fig, axes = plt.subplots(3 if snr is not None else 2, 1,
                                  figsize=(10, 8 if snr is not None else 6),
                                  sharex=True, constrained_layout=True)
-        if 'pwv_mm' in table.colnames:
+        if not tellurics_enabled:
+            axes[0].text(0.5, 0.5, 'No tellurics considered',
+                         transform=axes[0].transAxes, ha='center', va='center')
+            axes[0].set_ylabel('PWV [mm]')
+            axes[0].set_yticks([])
+        elif 'pwv_mm' in table.colnames:
             axes[0].plot(t, table['pwv_mm'])
             axes[0].set_ylabel('PWV [mm]')
         else:
