@@ -71,7 +71,8 @@ def calculate_atmosphere(config: str | Path, *, seed: int = 42,
 
 
 def calculate_spectrum(config: str | Path, *, backend: str = 'poseidon',
-                       seed: int = 42, overwrite: bool = False) -> Path:
+                       seed: int = 42, overwrite: bool = False,
+                       create_templates: bool = False) -> Path:
     """Compute a new transmission model; currently only POSEIDON is supported.
 
     The spectrum is saved to the same seed's instrument directory so observe
@@ -89,14 +90,42 @@ def calculate_spectrum(config: str | Path, *, backend: str = 'poseidon',
     diagnostics = run_dir / 'diagnostics'
     diagnostics.mkdir(parents=True, exist_ok=True)
     run = TransmissionRun.from_config(path)
-    spectrum = run.compute()
+    species = tuple(name for name in run.abundances.mixing_ratios
+                    if name not in run.abundances.bulk_species) if create_templates else ()
+    if create_templates:
+        existing = [run_dir / 'templates' / f'{name}.fits' for name in species]
+        if not overwrite and any(path.exists() for path in existing):
+            raise FileExistsError('Some molecular templates already exist; use --overwrite')
+        spectrum, templates = run.model.compute_transmission(
+            name=run.name, config=run.config, atmosphere=run.atmosphere,
+            composition=run.abundances.as_poseidon_composition(),
+            bulk_species=run.abundances.bulk_species, template_species=species)
+    else:
+        spectrum = run.compute()
+        templates = {}
     transmission = np.asarray(spectrum.transmission, float)
     if not np.isfinite(transmission).all() or not np.any(np.abs(transmission - 1) > 1e-12):
         raise ValueError('Planetary transmission must be finite and non-unity')
     with publication_style():
         spectrum.plot(diagnostics / 'poseidon_transmission.png')
     run.save(spectrum, directory=diagnostics / 'poseidon_arrays')
-    return write_spectrum_fits(spectrum, model_path, overwrite=overwrite, config_path=path)
+    result = write_spectrum_fits(spectrum, model_path, overwrite=overwrite,
+                                 config_path=path)
+    if create_templates:
+        from .poseidon import TransmissionSpectrum
+        for name, template in templates.items():
+            # The full adapter returns 1 - transit depth; the CCF template
+            # FITS convention stores transit depth directly.
+            depth = TransmissionSpectrum(template.wavelength_um,
+                                         1.0 - np.asarray(template.transmission))
+            destination = run_dir / 'templates' / f'{name}.fits'
+            write_spectrum_fits(depth, destination, overwrite=overwrite,
+                                config_path=path)
+            with publication_style():
+                depth.plot(destination.with_suffix('.png'))
+        print(f'Created {len(templates)} fixed-structure molecular templates: '
+              + ', '.join(templates))
+    return result
 
 
 def calculate_template(config: str | Path, *, species: str, seed: int = 42,
