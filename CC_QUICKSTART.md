@@ -76,3 +76,21 @@ argument and reads `ecc` and `omega` from the seed config internally.
 The CC stage recognizes this variant, checks that its source contains the
 eccentric-velocity correction, and does not pass unsupported keyword arguments.
 Always verify the model's sign and frame conventions using an injected signal.
+
+## Species templates with fixed atmospheric structure
+
+`exoatmosim template` constructs the full atmospheric composition in POSEIDON,
+including the original mean molecular weight and pressure-radius structure.
+It then uses `POSEIDON.contributions.spectral_contribution` to isolate the
+requested species opacity (with `bulk_species=False` in the opacity
+contribution calculation). Other species remain present in the atmospheric
+structure but their opacity is not included in the isolated template. The
+result is a species-only transit-depth FITS product, not a re-normalized
+mixture or a spectrum generated from a reduced-composition atmosphere.
+
+Regenerate any older molecular templates with `exoatmosim template ...
+--species H2O --overwrite`, because their atmospheric structures may differ.
+This feature requires a POSEIDON installation exposing the documented
+`spectral_contribution` interface. Validate it with a known injection on the
+installed POSEIDON fork; the Mantis POSEIDON variant has not been executed
+within this PR update.
