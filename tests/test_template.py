@@ -17,7 +17,7 @@ class TemplateTests(unittest.TestCase):
             self.assertEqual(cli.main(['template', 'config', '--species', 'O3']), 0)
             self.assertEqual(fn.call_args.kwargs['species'], 'O3')
 
-    def test_retains_bulk_and_target_without_other_opacities(self):
+    def test_preserves_full_composition_for_isolated_opacity(self):
         with tempfile.TemporaryDirectory() as temp:
             config = Path(temp) / 'planet' / 'config'
             config.parent.mkdir()
@@ -54,7 +54,9 @@ class TemplateTests(unittest.TestCase):
                 self.assertEqual(plot.call_args.kwargs['ylabel'], 'Transit depth (T)')
                 self.assertEqual(result.parent.name, 'templates')
                 composition = recorded['composition'].mixing_ratios
-                self.assertEqual(set(composition), {'H2', 'He', 'O3'})
+                self.assertEqual(set(composition), {'H2', 'He', 'O3', 'H2O'})
+                self.assertEqual(recorded['opacity_species'], 'O3')
+                np.testing.assert_array_equal(composition['H2O'], abundance.mixing_ratios['H2O'])
                 np.testing.assert_array_equal(composition['O3'], abundance.mixing_ratios['O3'])
                 self.assertEqual(recorded['bulk_species'], ('H2', 'He'))
                 with self.assertRaisesRegex(ValueError, 'bulk species'):
