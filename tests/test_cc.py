@@ -31,11 +31,11 @@ class CrossCorrelationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             config = Path(directory) / 'config'
             config.write_text(
-                'Ms 1.0\\nMp 0.001\\nP 365.25\\ninclination 90\\necc 0.0\\n')
+                'Ms 1.0\nMp 0.001\nP 365.25\ninclination 90\necc 0.0\n')
             kp = expected_planet_kp(config)
             self.assertAlmostEqual(kp, 29.78, delta=0.2)
             config.write_text(
-                'Ms 1.0\\nMp 0.001\\nP 365.25\\ninclination 90\\necc 0.6\\n')
+                'Ms 1.0\nMp 0.001\nP 365.25\ninclination 90\necc 0.6\n')
             self.assertAlmostEqual(expected_planet_kp(config) / kp, 1.25, places=8)
 
     def test_cli_routes_stage(self):
