@@ -44,7 +44,10 @@ def true_anomaly(jd, tc_jd, period_days, eccentricity, omega_rad):
     else:
         raise RuntimeError('Kepler equation did not converge')
     f = 2*np.arctan2(np.sqrt(1+e)*np.sin(E/2), np.sqrt(1-e)*np.cos(E/2))
-    return (f + np.pi) % (2*np.pi) - np.pi
+    # Preserve a continuous anomaly across periastron branch cuts. The RV
+    # equation uses sin/cos, so adding 2*pi does not change physical speeds.
+    # The observation schedule supplies times in chronological order.
+    return np.unwrap(f)
 
 
 def observation_orbit(run, n_exposures):
