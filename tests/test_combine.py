@@ -25,14 +25,11 @@ def make_input(root, instrument, seed, species, value, kp=None, snr=None):
 
 
 
-def fake_poseidon_plot(kp, vsys, *, CCF_Kp_Vsys, **kwargs):
-    """Stub visualization: arithmetic tests intentionally use constant maps."""
-    import matplotlib.pyplot as plt
-    fig, ax = plt.subplots()
-    ax.imshow(CCF_Kp_Vsys, origin='lower',
-              extent=[vsys[0], vsys[-1], kp[0], kp[-1]], aspect='auto')
-    # Mirror the POSEIDON fork returning pyplot, not a Figure.
-    return plt, ax
+def fake_cc_plot(kp, vsys, ccf, destination, **kwargs):
+    from pathlib import Path
+    Path(destination).parent.mkdir(parents=True, exist_ok=True)
+    Path(destination).write_bytes(b'plot')
+    return destination
 
 
 def test_average_four_instrument_seed_maps():
@@ -42,8 +39,8 @@ def test_average_four_instrument_seed_maps():
                                    ('VIOLA_H', 1, 3.), ('VIOLA_H', 2, 4.)]:
             make_input(root, inst, seed, 'O2', value)
         with patch('exoatmosim.cc.expected_planet_kp', return_value=191.862), \
-             patch('POSEIDON.high_res.plot_CCF_Kp_Vsys',
-                   side_effect=fake_poseidon_plot):
+             patch('exoatmosim.cc_plots.plot_kp_vsys',
+                   side_effect=fake_cc_plot):
             result = combine_maps('WASP-189 b',
                                   instruments=('VIOLA_J', 'VIOLA_H'), seeds=(1, 2),
                                   species=('O2',), data_dir=root)
@@ -78,8 +75,8 @@ def test_snr_squared_weighted_average():
         make_input(root, 'VIOLA_J', 1, 'O2', 10., snr=10.)
         make_input(root, 'VIOLA_H', 1, 'O2', 20., snr=20.)
         with patch('exoatmosim.cc.expected_planet_kp', return_value=191.862), \
-             patch('POSEIDON.high_res.plot_CCF_Kp_Vsys',
-                   side_effect=fake_poseidon_plot):
+             patch('exoatmosim.cc_plots.plot_kp_vsys',
+                   side_effect=fake_cc_plot):
             result = combine_maps('WASP-189 b', instruments=('VIOLA_J', 'VIOLA_H'),
                                   seeds=(1,), species=('O2',), data_dir=root)
         np.testing.assert_allclose(fits.getdata(result / 'O2' / 'kp_vsys.fits'), 18.)
