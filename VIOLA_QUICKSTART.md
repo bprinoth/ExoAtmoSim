@@ -58,3 +58,22 @@ Every successful native VIOLA observation writes two plots under
 
 They are regenerated when `observe --overwrite` runs. Plotting does not
 recompute PHOENIX, POSEIDON, or the HDF5 telluric grid.
+
+## Stellar continuum without PHOENIX lines
+
+To isolate the injected planetary transmission lines, set the instrument-specific
+configuration to:
+
+```text
+stellar_source blackbody
+```
+
+The native VIOLA J/H/K simulator then uses a smooth Planck continuum at
+`Teff`, calibrated to the corresponding J/H/K magnitude. The star's photon
+counts and ETC noise remain present; this is **not** a no-star/no-noise mode.
+The planet transmission, observer-frame RV shifts, instrumental LSF and any
+enabled telluric absorption are retained. For a clean planetary-only line test,
+also set `tellurics False` (and compare with the default `PHOENIX` setting).
+Regenerate `exoatmosim observe ... --overwrite` for this setting to take effect;
+the planetary spectrum/templates do not need to be regenerated. The config
+snapshot stays in the seed directory for reproducibility.
