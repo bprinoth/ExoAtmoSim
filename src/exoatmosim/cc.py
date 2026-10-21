@@ -121,6 +121,19 @@ def expected_planet_kp(config):
     return float(kp.to_value(u.km/u.s))
 
 
+def read_observation_berv(run):
+    """Read the exposure-midpoint BERV (km/s) from ExoAtmoSim obs_times."""
+    path = Path(run) / 'obs_times'
+    rows = [line.split() for line in path.read_text().splitlines()
+            if line.strip() and not line.lstrip().startswith('#')]
+    if not rows or any(len(row) < 5 for row in rows):
+        raise ValueError(f'Missing five-column obs_times BERV: {path}')
+    values = np.array([float(row[4]) for row in rows], dtype=float)
+    if not np.isfinite(values).all():
+        raise ValueError(f'Non-finite BERV in {path}')
+    return values
+
+
 def order_arrays(run, index, n_exposures):
     from astropy.io import fits
     with fits.open(run / f'wave_{index}.fits') as hdul:
@@ -247,6 +260,25 @@ def cross_correlate_run(config, *, seed=42, sysrem=5, species=('O2','O3','H2O'),
             metadata.get('orders') != names):
         raise ValueError('Prepared data were produced with incompatible settings; rerun preparation')
     data = read_high_res_data(str(prepared), names=names)
+    # POSEIDON's prepare/read functions do not necessarily retain V_bary from
+    # the raw HDF5. Inject the authoritative observer-frame correction directly
+    # into the per-order dict supplied to cross_correlate.
+    berv = read_observation_berv(run)
+    print(f'ExoAtmoSim obs_times BERV: {berv.min():.3f} to '
+          f'{berv.max():.3f} km/s')
+    for name in names:
+        if 'phi' not in data[name]:
+            raise ValueError(f'Prepared order {name} lacks phi')
+        if len(np.asarray(data[name]['phi']).ravel()) != len(berv):
+            raise ValueError(f'BERV exposure count differs from prepared {name}')
+        old = data[name].get('V_bary')
+        if old is None:
+            print(f'{name}: prepared V_bary absent; restoring from obs_times')
+        else:
+            old = np.asarray(old, float)
+            print(f'{name}: prepared V_bary range: '
+                  f'{old.min():.3f} to {old.max():.3f} km/s')
+        data[name]['V_bary'] = berv.copy()
     kp_expected = expected_planet_kp(run / 'config')
     print(f'Expected planetary Kp: {kp_expected:.3f} km/s')
     kp = np.arange(-300., 301., 1.)
