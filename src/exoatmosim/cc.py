@@ -94,6 +94,33 @@ def observation_orbit(run, n_exposures):
     return phi, berv, weights, eccentricity, np.deg2rad(omega_deg)
 
 
+def expected_planet_kp(config):
+    """Planet RV semi-amplitude in km/s for a general eccentric Kepler orbit.
+
+    Config masses are in solar and Jupiter masses, period in days,
+    inclination in degrees. Includes both masses rather than M_p << M_star.
+    """
+    import astropy.units as u
+    from astropy.constants import G
+    from .config import Config
+
+    cfg = Config.from_file(config)
+    mstar = cfg.get_float('Ms') * u.Msun
+    mplanet = cfg.get_float('Mp') * u.Mjup
+    period = cfg.get_float('P') * u.day
+    incl = np.deg2rad(cfg.get_float('inclination'))
+    ecc = cfg.get_float('ecc', 0.)
+    if (not np.isfinite([mstar.value, mplanet.value, period.value,
+                         incl, ecc]).all() or mstar <= 0*u.kg or
+            mplanet <= 0*u.kg or period <= 0*u.s or
+            not 0 <= ecc < 1):
+        raise ValueError('Invalid orbital inputs for expected planetary Kp')
+    kp = ((2*np.pi*G/period)**(1/3) * mstar *
+          np.sin(incl) / ((mstar + mplanet)**(2/3) *
+                          np.sqrt(1 - ecc*ecc)))
+    return float(kp.to_value(u.km/u.s))
+
+
 def order_arrays(run, index, n_exposures):
     from astropy.io import fits
     with fits.open(run / f'wave_{index}.fits') as hdul:
@@ -220,12 +247,16 @@ def cross_correlate_run(config, *, seed=42, sysrem=5, species=('O2','O3','H2O'),
             metadata.get('orders') != names):
         raise ValueError('Prepared data were produced with incompatible settings; rerun preparation')
     data = read_high_res_data(str(prepared), names=names)
+    kp_expected = expected_planet_kp(run / 'config')
+    print(f'Expected planetary Kp: {kp_expected:.3f} km/s')
     kp = np.arange(-300., 301., 1.)
     vsys = np.arange(-200., 201., 1.)
     rv = np.arange(-500., 501., 1.)
     # Eccentric POSEIDON variants must accept these keywords; refusing to
     # silently use a circular CCF prevents physically incorrect Kp maps.
     params = inspect.signature(cross_correlate).parameters
+    print(f'POSEIDON cross_correlate: {inspect.getfile(cross_correlate)}')
+    print(f'POSEIDON signature: {inspect.signature(cross_correlate)}')
     kwargs = {}
     if abs(metadata['eccentricity']) > 1e-12:
         if not {'ecc', 'omega_rad'} <= set(params):
@@ -260,7 +291,7 @@ def cross_correlate_run(config, *, seed=42, sysrem=5, species=('O2','O3','H2O'),
             fig.savefig(output / 'phase_rv.png', dpi=180)
             plt.close('all')
             fig, _ = plot_CCF_Kp_Vsys(kp, vsys, CCF_Kp_Vsys=kpmap,
-                                      label=molecule, Kp_expected=0.,
+                                      label=molecule, Kp_expected=kp_expected,
                                       Vsys_expected=0., plot_slice=True,
                                       save_file_path=None)
             fig.savefig(output / 'kp_vsys.png', dpi=180)
