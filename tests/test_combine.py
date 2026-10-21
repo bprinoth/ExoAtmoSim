@@ -31,7 +31,8 @@ def fake_poseidon_plot(kp, vsys, *, CCF_Kp_Vsys, **kwargs):
     fig, ax = plt.subplots()
     ax.imshow(CCF_Kp_Vsys, origin='lower',
               extent=[vsys[0], vsys[-1], kp[0], kp[-1]], aspect='auto')
-    return fig, ax
+    # Mirror the POSEIDON fork returning pyplot, not a Figure.
+    return plt, ax
 
 
 def test_average_four_instrument_seed_maps():
