@@ -30,6 +30,16 @@ def main(argv=None):
     spectrum.add_argument('--backend', default='poseidon', choices=['poseidon'])
     spectrum.add_argument('--seed', type=int, default=42)
     spectrum.add_argument('--overwrite', action='store_true')
+    cc = sub.add_parser('cc', help='Prepare and cross-correlate existing observed spectra')
+    cc.add_argument('config', type=Path)
+    cc.add_argument('--seed', type=int, default=42)
+    cc.add_argument('--sysrem', type=int, default=5)
+    cc.add_argument('--species', nargs='+', required=True,
+                    help='Existing species templates, e.g. O2 O3 H2O')
+    cc_mode = cc.add_mutually_exclusive_group()
+    cc_mode.add_argument('--prepare-only', action='store_true')
+    cc_mode.add_argument('--cc-only', action='store_true')
+    cc.add_argument('--overwrite', action='store_true')
     observe = sub.add_parser('observe', help='Observe an existing planetary FITS with constant-S/N orders')
     observe.add_argument('config', type=Path)
     observe.add_argument('--seed', type=int, default=42)
@@ -53,6 +63,12 @@ def main(argv=None):
     elif args.command == 'template':
         result = workflow.calculate_template(args.config, species=args.species,
                                              seed=args.seed, overwrite=args.overwrite)
+    elif args.command == 'cc':
+        from .cc import cross_correlate_run
+        result = cross_correlate_run(args.config, seed=args.seed,
+                sysrem=args.sysrem, species=tuple(args.species),
+                prepare_only=args.prepare_only, cc_only=args.cc_only,
+                overwrite=args.overwrite)
     elif args.command == 'spectrum':
         result = workflow.calculate_spectrum(args.config, backend=args.backend,
                                              seed=args.seed, overwrite=args.overwrite)
