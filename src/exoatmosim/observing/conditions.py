@@ -161,6 +161,7 @@ def plot_observing_conditions(table, path, *, snr_fits=None, tellurics_enabled=T
         if snr is not None:
             axes[2].plot(t, snr, marker='o', markersize=3)
             axes[2].set_ylabel('Median S/N / res. element')
+            axes[2].ticklabel_format(axis='y', style='plain', useOffset=False)
         axes[-1].set_xlabel('Hours since first exposure')
         fig.align_ylabels(axes)
         fig.savefig(path, dpi=180)
