@@ -77,3 +77,41 @@ also set `tellurics False` (and compare with the default `PHOENIX` setting).
 Regenerate `exoatmosim observe ... --overwrite` for this setting to take effect;
 the planetary spectrum/templates do not need to be regenerated. The config
 snapshot stays in the seed directory for reproducibility.
+
+## One-pass molecular templates and CCF recovery
+
+For multiple species, avoid reloading POSEIDON's opacity tables for each
+individual template:
+
+```bash
+exoatmosim spectrum data/TRAPPIST-1_b/config_viola_k --seed 0 --create-templates --overwrite
+exoatmosim observe data/TRAPPIST-1_b/config_viola_k --seed 0 --overwrite
+exoatmosim cc data/TRAPPIST-1_b/config_viola_k --seed 0 --species H2O --sysrem 3 --overwrite
+```
+
+The `--create-templates` option keeps the full chemical composition for the
+pressure–radius/MMW calculation and generates every non-bulk gas's opacity
+contribution in the same POSEIDON setup. All species must still have useful
+line opacity to produce a detectable CCF; cold, depleted atmospheres can
+produce nearly flat templates. The current implementation warns through a
+raised validation error for peak-to-peak contribution amplitudes ≤ 1e-12.
+
+Once individual CCF maps have been generated for the same planet, species and
+velocity grids, combine instrument bands and/or seeds:
+
+```bash
+exoatmosim combine --planet "WASP-189 b" --instruments VIOLA_J VIOLA_H VIOLA_K \
+  --seeds 1 2 3 4 --species O2 O3 H2O --sysrem 5 --overwrite
+```
+
+This uses the median per-exposure S/N squared for relative map weights when
+`snr_res_0.fits` is available. The combined FITS map remains in raw CCF units;
+the corresponding PNG uses POSEIDON's sigma-like normalization (not a
+calibrated detection probability). For the full methodology see
+[CC_QUICKSTART.md](CC_QUICKSTART.md).
+
+## Per-exposure atmospheric and S/N diagnostics
+
+The `observing_conditions.png` diagnostic shows PWV, airmass, and median
+S/N per resolution element (derived from `snr_res_0.fits`). When
+`tellurics False`, the PWV panel instead states "No tellurics considered".
