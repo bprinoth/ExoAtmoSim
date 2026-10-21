@@ -100,8 +100,21 @@ def order_arrays(run, index, n_exposures):
         wave = np.asarray(hdul[0].data, float)
         medium = hdul[0].header.get('WAVEMED', '').upper()
     flux = np.asarray(fits.getdata(run / f'order_{index}.fits'), float)
+    if not medium:
+        # Older ExoAtmoSim writers did not include wavelength-medium headers.
+        # Recover the convention from the immutable seed-specific config.
+        from .config import Config
+        import warnings
+        cfg = Config.from_file(run / 'config')
+        medium = 'AIR' if cfg.get_bool('air', True) else 'VACUUM'
+        warnings.warn(
+            f'Order {index}: wave FITS lacks WAVEMED; using {medium} from '
+            f'{run / "config"}', RuntimeWarning)
+    if medium not in ('AIR', 'VAC', 'VACUUM'):
+        raise ValueError(f'Order {index}: unrecognized WAVEMED={medium!r}')
     if medium != 'AIR':
-        raise ValueError(f'Order {index}: expected AIR wavelengths in nm')
+        raise ValueError(f'Order {index}: expected AIR wavelengths in nm; '
+                         'vacuum input requires a separate conversion path')
     if wave.ndim == 2:
         if wave.shape[0] != n_exposures or not np.allclose(wave, wave[0]):
             raise ValueError('Exposure-dependent grids are not supported yet')
