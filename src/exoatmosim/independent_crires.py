@@ -237,7 +237,8 @@ def run(config_path, stellar_npz, *, output=None, snr=None, seed=42, overwrite=F
                   cfg, config_path, pw, pf, out, seed=seed, overwrite=overwrite)
         plot_observing_conditions(
             conditions, diagnostic / 'observing_conditions.png',
-            snr_fits=out / 'snr_res_0.fits')
+            snr_fits=out / 'snr_res_0.fits',
+            tellurics_enabled=cfg.get_bool('tellurics', False))
         write_observation_times(out / 'obs_times', schedule)
         run_manifest_path.write_text(json.dumps({
             'instrument':instrument,'noise_seed':seed,'config_sha256':cfg_digest,
@@ -321,7 +322,8 @@ def run(config_path, stellar_npz, *, output=None, snr=None, seed=42, overwrite=F
     results = simulate_orders(orders, sw, sf, pw, pf, rv_star, rv_planet,
                               weight, snr=use_snr, seed=seed,
                               stellar_observer_frame=False, **extra)
-    plot_observing_conditions(conditions, diagnostic / 'observing_conditions.png')
+    plot_observing_conditions(conditions, diagnostic / 'observing_conditions.png',
+                              tellurics_enabled=cfg.get_bool('tellurics', False))
     written = write_spectral_orders(results, out, overwrite=overwrite)
     # Mandatory quick-look diagnostic: verify that an actual order was synthesized.
     import matplotlib
