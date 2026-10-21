@@ -65,11 +65,9 @@ exoatmosim combine --planet "WASP-189 b" \
   --seeds 1 2 3 4 --sysrem 5 --species O2 O3 H2O
 ```
 
-For every molecule, all twelve instrument–seed maps are summed. Outputs are
-under `data/WASP-189_b/combined/sysrem_5/{species}/` and contain the raw
-summed map, Kp and Vsys axes, a figure, and `combination.json` provenance.
-The command fails if an input is absent or the velocity grids differ. It does
-not normalize maps or interpret their sum as a calibrated detection significance.
+For every molecule, all twelve instrument–seed raw CCF maps are combined using an S/N-squared weighted mean (equal weights only when S/N FITS are absent). Outputs are
+under `data/WASP-189_b/combined/sysrem_5/{species}/` and contain the raw weighted-mean map, Kp and Vsys axes, a POSEIDON-normalized significance figure restricted to nonnegative Kp and labeled Vsys, and `combination.json` provenance.
+The command fails if an input is absent or the velocity grids differ. The FITS map remains in raw CCF units; the PNG uses POSEIDON's significance plotting normalization and is not by itself a calibrated false-alarm probability.
 Use `--data-dir /data/bibi/VIOLA/data` for simulations stored outside the
 repository. `--overwrite` regenerates the combined products.
 
