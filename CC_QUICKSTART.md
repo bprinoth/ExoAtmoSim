@@ -132,3 +132,19 @@ The plot-only score is (CCF − off-trail mean) / off-trail standard deviation,
 where off-trail refers to |Vsys| ≥ 50 km/s (phase–RV uses |RV| ≥ 250 km/s).
 These are **not** POSEIDON's exact per-map significance algorithm or
 calibrated detection significances. The raw FITS CCF arrays remain unchanged.
+
+## True-anomaly wrapping for eccentric orbits
+
+The phase coordinate supplied to POSEIDON is the **true anomaly in radians**,
+not linear orbital phase or the true anomaly divided by 2π. ExoAtmoSim now
+unwraps the anomaly chronologically before preparation so an observing sequence
+straddling ±π is continuous. This changes only the angle branch: Keplerian RVs
+use sin/cos and are identical modulo 2π. The independent RVTraceEstimator also
+uses an unwrapped angle in its diagnostics. The transit-centered phase plotted
+by RVTraceEstimator is a separate coordinate, zero at Tc, and **must not** be
+substituted for POSEIDON's true anomaly in the eccentric velocity equation.
+
+Regenerate pre-existing SYSREM preparations for a phase-wrapping target with
+`exoatmosim cc CONFIG --seed SEED --species GAS --sysrem N --overwrite`
+(without `--cc-only`), because prepared HDF5 files can contain the old wrapped
+angle arrays. Compare the recovered RV position against an injected known signal.
