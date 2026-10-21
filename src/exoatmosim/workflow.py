@@ -125,6 +125,8 @@ def calculate_spectrum(config: str | Path, *, backend: str = 'poseidon',
                     f'{name} opacity contribution is flat (peak-to-peak '
                     f'{amplitude:.3g}); check abundance and POSEIDON '
                     'spectral_contribution before using the template')
+            print(f'{name} contribution: depth min={values.min():.10g}, '
+                  f'max={values.max():.10g}, peak-to-peak={amplitude:.3g}')
             depths[name] = depth
     result = write_spectrum_fits(spectrum, model_path, overwrite=overwrite,
                                  config_path=path)
