@@ -40,6 +40,14 @@ def main(argv=None):
     cc_mode.add_argument('--prepare-only', action='store_true')
     cc_mode.add_argument('--cc-only', action='store_true')
     cc.add_argument('--overwrite', action='store_true')
+    combine = sub.add_parser('combine', help='Combine Kp-Vsys CCF maps across instruments and seeds')
+    combine.add_argument('--planet', required=True)
+    combine.add_argument('--instruments', nargs='+', required=True)
+    combine.add_argument('--seeds', nargs='+', type=int, required=True)
+    combine.add_argument('--species', nargs='+', default=['O2', 'O3', 'H2O'])
+    combine.add_argument('--sysrem', type=int, default=5)
+    combine.add_argument('--data-dir', type=Path, default=Path('data'))
+    combine.add_argument('--overwrite', action='store_true')
     observe = sub.add_parser('observe', help='Observe an existing planetary FITS with constant-S/N orders')
     observe.add_argument('config', type=Path)
     observe.add_argument('--seed', type=int, default=42)
@@ -63,6 +71,12 @@ def main(argv=None):
     elif args.command == 'template':
         result = workflow.calculate_template(args.config, species=args.species,
                                              seed=args.seed, overwrite=args.overwrite)
+    elif args.command == 'combine':
+        from .combine import combine_maps
+        result = combine_maps(args.planet, instruments=tuple(args.instruments),
+                              seeds=tuple(args.seeds), species=tuple(args.species),
+                              sysrem=args.sysrem, data_dir=args.data_dir,
+                              overwrite=args.overwrite)
     elif args.command == 'cc':
         from .cc import cross_correlate_run
         result = cross_correlate_run(args.config, seed=args.seed,
