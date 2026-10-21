@@ -25,6 +25,19 @@ class CrossCorrelationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             true_anomaly(np.array([2450000.]), 2450000., 1., 1., 0.)
 
+    def test_expected_kp_from_keplerian_orbit(self):
+        import tempfile
+        from exoatmosim.cc import expected_planet_kp
+        with tempfile.TemporaryDirectory() as directory:
+            config = Path(directory) / 'config'
+            config.write_text(
+                'Ms 1.0\\nMp 0.001\\nP 365.25\\ninclination 90\\necc 0.0\\n')
+            kp = expected_planet_kp(config)
+            self.assertAlmostEqual(kp, 29.78, delta=0.2)
+            config.write_text(
+                'Ms 1.0\\nMp 0.001\\nP 365.25\\ninclination 90\\necc 0.6\\n')
+            self.assertAlmostEqual(expected_planet_kp(config) / kp, 1.25, places=8)
+
     def test_cli_routes_stage(self):
         from exoatmosim.cli import main
         with patch('exoatmosim.cc.cross_correlate_run', return_value=Path('cc')) as fn:
