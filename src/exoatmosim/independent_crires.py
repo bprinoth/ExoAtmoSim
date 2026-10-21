@@ -235,7 +235,9 @@ def run(config_path, stellar_npz, *, output=None, snr=None, seed=42, overwrite=F
             pf = np.asarray(hdul[2].data, float)
         written = make_native_viola_observation(schedule, rv_star, rv_planet, weight,
                   cfg, config_path, pw, pf, out, seed=seed, overwrite=overwrite)
-        plot_observing_conditions(conditions, diagnostic / 'observing_conditions.png')
+        plot_observing_conditions(
+            conditions, diagnostic / 'observing_conditions.png',
+            snr_fits=out / 'snr_res_0.fits')
         write_observation_times(out / 'obs_times', schedule)
         run_manifest_path.write_text(json.dumps({
             'instrument':instrument,'noise_seed':seed,'config_sha256':cfg_digest,
