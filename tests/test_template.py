@@ -64,6 +64,50 @@ class TemplateTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'not in the atmospheric abundances'):
                     workflow.calculate_template(config, species='CH4')
 
+    def test_spectrum_create_templates_uses_one_shared_model_call(self):
+        with tempfile.TemporaryDirectory() as temp:
+            config = Path(temp) / 'planet' / 'config'
+            config.parent.mkdir()
+            config.write_text('instrument CRIRES_K\\n')
+            p = np.array([1e-5, 1.])
+            abundance = AbundanceProfile(p, {
+                'H2': np.array([.8, .8]),
+                'He': np.array([.19, .19]),
+                'H2O': np.array([1e-5, 1e-5]),
+                'O3': np.array([1e-7, 1e-7]),
+            }, ('H2', 'He'))
+            full = SimpleNamespace(wavelength_um=np.array([1., 1.1]),
+                                   transmission=np.array([.992, .991]))
+            water = SimpleNamespace(wavelength_um=np.array([1., 1.1]),
+                                    transmission=np.array([.992, .990]))
+            ozone = SimpleNamespace(wavelength_um=np.array([1., 1.1]),
+                                    transmission=np.array([.991, .989]))
+            call = []
+            def compute(**kwargs):
+                call.append(kwargs)
+                return full, {'H2O': water, 'O3': ozone}
+            run = SimpleNamespace(abundances=abundance, name='planet', config=object(),
+                                  atmosphere=object(), model=SimpleNamespace(
+                                      compute_transmission=compute))
+            written = {}
+            def save_fits(spectrum, destination, **kwargs):
+                written[Path(destination).name] = np.asarray(spectrum.transmission)
+                return destination
+            with patch('exoatmosim.poseidon.TransmissionRun.from_config', return_value=run), \\
+                 patch('exoatmosim.spectrum_fits.write_spectrum_fits', side_effect=save_fits), \\
+                 patch('exoatmosim.poseidon.TransmissionSpectrum.plot'), \\
+                 patch('exoatmosim.workflow.publication_style'):
+                workflow.calculate_spectrum(config, create_templates=True)
+            self.assertEqual(len(call), 1)
+            self.assertEqual(call[0]['template_species'], ('H2O', 'O3'))
+            self.assertEqual(set(written), {'planet.fits', 'H2O.fits', 'O3.fits'})
+            np.testing.assert_allclose(written['H2O.fits'], [.008, .010])
+
+    def test_spectrum_cli_create_templates(self):
+        with patch.object(workflow, 'calculate_spectrum', return_value=Path('planet.fits')) as fn:
+            self.assertEqual(cli.main(['spectrum', 'config', '--create-templates']), 0)
+            self.assertTrue(fn.call_args.kwargs['create_templates'])
+
     def test_existing_template_requires_overwrite(self):
         with tempfile.TemporaryDirectory() as temp:
             config = Path(temp) / 'planet' / 'config'
