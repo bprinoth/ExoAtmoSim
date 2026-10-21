@@ -44,13 +44,15 @@ and the original RV model for accurate non-edge-on cases.
 
 **POSEIDON compatibility:** This stage requires a POSEIDON `cross_correlate`
 implementation whose Kp-Vsys velocity expression treats `phi` as true
-anomaly. For eccentric orbits, the function must expose `ecc` and
-`omega_rad` keyword parameters, or the CC stage raises an error rather
-than silently assuming circular motion. The repository cannot patch or
+anomaly. For eccentric orbits, the routine must either accept `ecc` and `omega_rad`
+keywords or read the orbital elements from its `dp` configuration using a
+correct true-anomaly velocity expression. The CC stage checks for these
+interfaces; science validation still requires an injected-signal recovery. The repository cannot patch or
 verify your separate editable POSEIDON installation.
 
-**Reference marker:** `Kp_expected=0` and `Vsys_expected=0` are purely
-plotting placeholders. They are not physical estimates. The CCF frame and
+**Reference marker:** the expected `Kp` is computed from the orbital masses,
+period, inclination and eccentricity. The `Vsys_expected=0` marker denotes
+the zero residual-velocity offset in the corrected observer-frame convention. The CCF frame and
 velocity sign must be validated before interpreting any detection. Results
 are exploratory, not calibrated detection significances.
 
@@ -100,7 +102,7 @@ within this PR update.
 Avoid repeatedly loading the same high-resolution opacity grids by running:
 
 ```bash
-exoatmosim spectrum data/TRAPPIST-1_b/config_viola_k \\
+exoatmosim spectrum data/TRAPPIST-1_b/config_viola_k \
   --seed 0 --create-templates --overwrite
 ```
 
@@ -111,9 +113,10 @@ full-spectrum FITS plus `templates/<species>.fits` for each gas returned by
 the contribution routine. This avoids repeating those expensive setup steps,
 though each separate contribution still requires radiative-transfer work.
 
-The program fails if a contribution is nonfinite, flat (peak-to-peak depth
-≤ 1e-12), or missing. A flat template is not useful for a CCF and should
-be investigated rather than artificially made nonzero. In particular, the
-underlying scientific reason for the previously reported flat template has
-not yet been verified on Mantis; `--create-templates` is a performance change,
-not proof that the individual contributions are physically correct.
+The current implementation rejects a contribution that is nonfinite, missing,
+or effectively featureless (peak-to-peak depth ≤ 1e-12). This is a diagnostic
+threshold, **not proof of a software error**: cold or otherwise depleted
+atmospheres can have genuinely negligible gas-phase abundances. Check the
+abundance profile before interpreting a flat contribution. The combined
+workflow reduces repeated opacity setup but does not guarantee detectable
+molecular features.
