@@ -266,6 +266,7 @@ def make_native_viola_observation(schedule, rv_star, rv_planet, transit_weight,
     fnu0 = FNU0_VEGA[band]
     reference = C/(center*1e-9)**2 * fnu0*10**(-0.4*magnitude)*1e-6
     star_shape *= reference/np.interp(center, star_wave, star_shape)
+    original_stellar_wave = star_wave.copy()
     original_stellar_flux = star_shape.copy()
     # Apply stellar rotation ONCE, in the stellar rest frame, before Doppler
     # shifting and before multiplying planet/telluric transmission. Never
@@ -273,8 +274,6 @@ def make_native_viola_observation(schedule, rv_star, rv_planet, transit_weight,
     if vsini > 0:
         star_wave, star_shape = broaden_spectrum(
             star_wave, star_shape, resolution=None, vsini_kms=vsini)
-    else:
-        star_wave = star_wave
     # PWV is sampled once per exposure and used for the SkyCalc background.
     # The external HDF5 library was generated with its own atmospheric profile;
     # PWV (mm) is NOT interchangeable with RH (%).
@@ -321,7 +320,7 @@ def make_native_viola_observation(schedule, rv_star, rv_planet, transit_weight,
         raise FileExistsError('VIOLA native outputs exist; use --overwrite')
     from .viola_plots import plot_stellar_spectrum_comparison
     stellar_diagnostic = plot_stellar_spectrum_comparison(
-        output_dir, star_wave, original_stellar_flux,
+        output_dir, original_stellar_wave, original_stellar_flux,
         star_wave, star_shape, vsini)
     print(f'Stellar spectrum comparison: {stellar_diagnostic}')
     # Remove legacy duplicate only when regenerating an existing observation.
