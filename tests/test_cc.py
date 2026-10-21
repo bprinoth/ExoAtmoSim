@@ -44,8 +44,8 @@ class CrossCorrelationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             obs = Path(d) / 'obs_times'
             obs.write_text(
-                '58926.20 2020-03-18T04:51:17 150.0 1.56 21.69844816\\n'
-                '58926.21 2020-03-18T05:01:17 150.0 1.49 21.68244106\\n')
+                '58926.20 2020-03-18T04:51:17 150.0 1.56 21.69844816\n'
+                '58926.21 2020-03-18T05:01:17 150.0 1.49 21.68244106\n')
             np.testing.assert_allclose(
                 read_observation_berv(d), [21.69844816, 21.68244106])
 
