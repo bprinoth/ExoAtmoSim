@@ -242,8 +242,8 @@ def cross_correlate_run(config, *, seed=42, sysrem=5, species=('O2','O3','H2O'),
             ccf_per_order = []
             maps = []
             for name in names:
-                map_order, ccf_order = cross_correlate(kp, vsys, rv, wave, depth,
-                                                      data[name], **kwargs)
+                map_order, ccf_order = cross_correlate(str(run), kp, vsys, rv,
+                                                      wave, depth, data[name], **kwargs)
                 maps.append(map_order)
                 ccf_per_order.append(ccf_order)
             output = out / f'sysrem_{sysrem}' / molecule
