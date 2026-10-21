@@ -1,4 +1,5 @@
 __pycache__/
+viola_ccf_batch.py
 *.py[cod]
 *.egg-info/
 .pytest_cache/
@@ -12,6 +13,8 @@ diagnostics/
 POSEIDON_output/
 .env
 .venv/
+CCF_results
+successful_runs.log
 
 # Machine-specific scientific backend locations
 /config/site_paths.conf
