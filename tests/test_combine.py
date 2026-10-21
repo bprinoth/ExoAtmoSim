@@ -24,13 +24,25 @@ def make_input(root, instrument, seed, species, value, kp=None, snr=None):
     return run
 
 
+
+def fake_poseidon_plot(kp, vsys, *, CCF_Kp_Vsys, **kwargs):
+    """Stub visualization: arithmetic tests intentionally use constant maps."""
+    import matplotlib.pyplot as plt
+    fig, ax = plt.subplots()
+    ax.imshow(CCF_Kp_Vsys, origin='lower',
+              extent=[vsys[0], vsys[-1], kp[0], kp[-1]], aspect='auto')
+    return fig, ax
+
+
 def test_average_four_instrument_seed_maps():
     with TemporaryDirectory() as temp:
         root = Path(temp)
         for inst, seed, value in [('VIOLA_J', 1, 1.), ('VIOLA_J', 2, 2.),
                                    ('VIOLA_H', 1, 3.), ('VIOLA_H', 2, 4.)]:
             make_input(root, inst, seed, 'O2', value)
-        with patch('exoatmosim.cc.expected_planet_kp', return_value=191.862):
+        with patch('exoatmosim.cc.expected_planet_kp', return_value=191.862), \
+             patch('POSEIDON.high_res.plot_CCF_Kp_Vsys',
+                   side_effect=fake_poseidon_plot):
             result = combine_maps('WASP-189 b',
                                   instruments=('VIOLA_J', 'VIOLA_H'), seeds=(1, 2),
                                   species=('O2',), data_dir=root)
