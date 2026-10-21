@@ -155,8 +155,8 @@ _WORKFLOW_GROUPS = (
     }),
     ('Observing atmosphere and tellurics', {
         'tellurics': 'False',
-        'pwv': '2.5',
-        'pwv_sigma': '0.5',
+        'pwv': '2.0',
+        'pwv_sigma': '0.1',
     }),
 )
 

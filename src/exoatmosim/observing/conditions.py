@@ -143,7 +143,7 @@ def plot_observing_conditions(table, path):
     return path
 
 
-def sample_pwv(schedule, *, mean_mm=2.5, sigma_mm=0.5, timescale_minutes=30., seed=42):
+def sample_pwv(schedule, *, mean_mm=2., sigma_mm=0.1, timescale_minutes=30., seed=42):
     """Stationary, seeded correlated PWV values in mm, one per exposure."""
     mids=np.asarray(schedule.midpoint_jd_utc,float)
     if (mids.ndim!=1 or len(mids)==0 or np.any(np.diff(mids)<=0) or
