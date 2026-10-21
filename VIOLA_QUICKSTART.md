@@ -106,7 +106,7 @@ exoatmosim combine --planet "WASP-189 b" --instruments VIOLA_J VIOLA_H VIOLA_K \
 
 This uses the median per-exposure S/N squared for relative map weights when
 `snr_res_0.fits` is available. The combined FITS map remains in raw CCF units;
-the corresponding PNG uses POSEIDON's sigma-like normalization (not a
+the corresponding PNG uses ExoAtmoSim's off-trail background-scatter normalization (not a
 calibrated detection probability). For the full methodology see
 [CC_QUICKSTART.md](CC_QUICKSTART.md).
 
@@ -115,3 +115,15 @@ calibrated detection probability). For the full methodology see
 The `observing_conditions.png` diagnostic shows PWV, airmass, and median
 S/N per resolution element (derived from `snr_res_0.fits`). When
 `tellurics False`, the PWV panel instead states "No tellurics considered".
+
+
+## Native cross-correlation figures
+
+The `cc` and `combine` stages now use native ExoAtmoSim plotting rather than
+POSEIDON's plotting functions. `phase_rv.png` is a compact true-anomaly versus
+RV diagnostic. `kp_vsys.png` contains a nonnegative-Kp map and a velocity
+slice through the expected Kp, with a compact colorbar and no legend.
+The plot-only score is (CCF − off-trail mean) / off-trail standard deviation,
+where off-trail refers to |Vsys| ≥ 50 km/s (phase–RV uses |RV| ≥ 250 km/s).
+These are **not** POSEIDON's exact per-map significance algorithm or
+calibrated detection significances. The raw FITS CCF arrays remain unchanged.
