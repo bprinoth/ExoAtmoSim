@@ -85,7 +85,7 @@ def plot_kp_vsys(kp, vsys, ccf, destination, *, molecule=None,
         slice_ax.plot(vsys, curve, color='#bd2943', lw=1.5)
         slice_ax.axhline(0, lw=.8, color='0.5')
         slice_ax.axvline(vsys_expected, color='0.4', lw=1., ls=':')
-        slice_ax.set(xlabel=r'$V_{\\rm sys}$ (km/s)', ylabel='CCF / noise',
+        slice_ax.set(xlabel='Vsys (km/s)', ylabel='CCF / noise',
                      title=rf'Slice at $K_p={kp_positive[index]:.1f}$ km/s')
         slice_ax.title.set_fontsize(11)
         slice_ax.tick_params(top=False)
