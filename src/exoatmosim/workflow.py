@@ -103,13 +103,12 @@ def calculate_template(config: str | Path, *, species: str, seed: int = 42,
                        overwrite: bool = False) -> Path:
     """Compute a species-only line-opacity transmission template using POSEIDON.
 
-    Preserve the calculated T-P profile, target VMR, and background bulk
-    species; remove other trace absorbers without renormalizing abundances.
+    Compute the full-composition atmospheric structure (including its original
+    mean molecular weight), and isolate only the requested gas opacity.
     Uses the same wavelength grid and FITS schema as `spectrum`, but
     stores POSEIDON transit depth T rather than the usual 1 - T.
     """
     from .poseidon import TransmissionRun, TransmissionSpectrum
-    from .profiles import AbundanceProfile
     from .spectrum_fits import write_spectrum_fits
 
     species = species.strip()
@@ -127,17 +126,14 @@ def calculate_template(config: str | Path, *, species: str, seed: int = 42,
     bulk = run.abundances.bulk_species
     if species in bulk:
         raise ValueError(f'{species!r} is a bulk species; choose a trace absorber')
-    # Do not invent a bulk composition or renormalize: the purpose is to
-    # isolate the selected opacity at the original atmospheric structure.
-    selected = {name: values for name, values in ratios.items()
-                if name in bulk or name == species}
-    template_abundances = AbundanceProfile(
-        run.abundances.pressure_bar, selected, bulk)
+    # The complete composition must be retained when POSEIDON constructs
+    # pressure-radius and mean-molecular-weight profiles. Opacity filtering
+    # occurs *after* make_atmosphere via POSEIDON's contribution calculation.
     _snapshot(path, run_dir, overwrite=overwrite)
     spectrum = run.model.compute_transmission(
         name=run.name, config=run.config, atmosphere=run.atmosphere,
-        composition=template_abundances.as_poseidon_composition(),
-        bulk_species=bulk)
+        composition=run.abundances.as_poseidon_composition(),
+        bulk_species=bulk, opacity_species=species)
     transmission = np.asarray(spectrum.transmission, float)
     if not np.isfinite(transmission).all():
         raise ValueError('Species template transmission must be finite')
