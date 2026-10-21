@@ -60,7 +60,7 @@ def plot_kp_vsys(kp, vsys, ccf, destination, *, molecule=None,
     finite = positive[np.isfinite(positive)]
     if not finite.size:
         raise ValueError('No finite standardized CCF map')
-    limit = max(3., float(np.percentile(np.abs(finite), 99.5)))
+    limit = max(3., float(np.percentile(np.abs(finite), 99.9)))
     destination = Path(destination)
     destination.parent.mkdir(parents=True, exist_ok=True)
     with publication_style():
@@ -70,7 +70,7 @@ def plot_kp_vsys(kp, vsys, ccf, destination, *, molecule=None,
         ax = fig.add_subplot(gs[0, 0])
         slice_ax = fig.add_subplot(gs[1, 0], sharex=ax)
         cax = fig.add_subplot(gs[0, 1])
-        image = ax.pcolormesh(vsys, kp_positive, positive, cmap='magma',
+        image = ax.pcolormesh(vsys, kp_positive, positive, cmap='inferno',
                               shading='auto', vmin=-limit, vmax=limit, rasterized=True)
         fig.colorbar(image, cax=cax, label='CCF / background scatter')
         if kp_expected is not None:
@@ -113,12 +113,12 @@ def plot_phase_rv(phi, rv, ccf, destination):
     if np.count_nonzero(noise) < 2:
         noise = np.ones(rv.shape, bool)
     scaled = standardize_ccf(ccf, noise)
-    bound = max(3., float(np.nanpercentile(np.abs(scaled), 99.5)))
+    bound = max(3., float(np.nanpercentile(np.abs(scaled), 99.9)))
     destination = Path(destination)
     destination.parent.mkdir(parents=True, exist_ok=True)
     with publication_style():
         fig, ax = plt.subplots(figsize=(10, 4.7), layout='constrained')
-        image = ax.pcolormesh(rv, phi, scaled, shading='auto', cmap='magma',
+        image = ax.pcolormesh(rv, phi, scaled, shading='auto', cmap='inferno',
                               vmin=-bound, vmax=bound, rasterized=True)
         fig.colorbar(image, ax=ax, pad=.015, fraction=.028,
                      label='CCF / background scatter')
