@@ -109,31 +109,34 @@ def calculate_spectrum(config: str | Path, *, backend: str = 'poseidon',
     with publication_style():
         spectrum.plot(diagnostics / 'poseidon_transmission.png')
     run.save(spectrum, directory=diagnostics / 'poseidon_arrays')
-    result = write_spectrum_fits(spectrum, model_path, overwrite=overwrite,
-                                 config_path=path)
+    # Validate all contributions before writing any new FITS products.
+    depths = {}
     if create_templates:
         from .poseidon import TransmissionSpectrum
+        if set(templates) != set(species):
+            raise RuntimeError('POSEIDON returned an incomplete set of molecular templates')
         for name, template in templates.items():
-            # The full adapter returns 1 - transit depth; the CCF template
-            # FITS convention stores transit depth directly.
             depth = TransmissionSpectrum(template.wavelength_um,
                                          1.0 - np.asarray(template.transmission))
-            # A flat opacity contribution is unusable for cross-correlation.
-            # Refuse to silently produce a featureless template.
             values = np.asarray(depth.transmission, float)
             amplitude = float(np.ptp(values))
             if amplitude <= 1e-12:
                 raise ValueError(
                     f'{name} opacity contribution is flat (peak-to-peak '
-                    f'{amplitude:.3g}); check its abundance and POSEIDON '
-                    'spectral_contribution semantics before using the template')
-            destination = run_dir / 'templates' / f'{name}.fits'
-            write_spectrum_fits(depth, destination, overwrite=overwrite,
-                                config_path=path)
-            with publication_style():
-                depth.plot(destination.with_suffix('.png'))
-        print(f'Created {len(templates)} fixed-structure molecular templates: '
-              + ', '.join(templates))
+                    f'{amplitude:.3g}); check abundance and POSEIDON '
+                    'spectral_contribution before using the template')
+            depths[name] = depth
+    result = write_spectrum_fits(spectrum, model_path, overwrite=overwrite,
+                                 config_path=path)
+    for name, depth in depths.items():
+        destination = run_dir / 'templates' / f'{name}.fits'
+        write_spectrum_fits(depth, destination, overwrite=overwrite,
+                            config_path=path)
+        with publication_style():
+            depth.plot(destination.with_suffix('.png'))
+    if create_templates:
+        print(f'Created {len(depths)} fixed-structure molecular templates: '
+              + ', '.join(depths))
     return result
 
 
