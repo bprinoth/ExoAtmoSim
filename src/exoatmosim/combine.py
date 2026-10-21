@@ -40,7 +40,7 @@ def combine_maps(planet, *, instruments, seeds, species=('O2', 'O3', 'H2O'),
     """
     from astropy.io import fits
     from .cc import expected_planet_kp
-    from POSEIDON.high_res import plot_CCF_Kp_Vsys
+    from .cc_plots import plot_kp_vsys
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
@@ -110,42 +110,14 @@ def combine_maps(planet, *, instruments, seeds, species=('O2', 'O3', 'H2O'),
         for name, array in [('kp_vsys.fits', combined), ('kp_axis.fits', kp),
                             ('vsys_axis.fits', vsys)]:
             fits.writeto(dest / name, array, overwrite=overwrite)
-        # Feed the full combined raw map to POSEIDON's own significance
-        # plotting routine, as in the single-run CC stage. Retain negative
-        # Kp internally if POSEIDON needs it for noise normalization, but
-        # never display that unphysical region.
-        with plt.rc_context({'figure.constrained_layout.use': False,
-                             'figure.autolayout': False}):
-            plot_CCF_Kp_Vsys(
-                kp, vsys, CCF_Kp_Vsys=combined, label=molecule,
-                Kp_expected=kp_expected, Vsys_expected=0.,
-                plot_slice=True, save_file_path=None)
-            # POSEIDON versions may return pyplot (whose .axes is a function)
-            # rather than a Figure. The active Matplotlib figure is reliable.
-            fig = plt.gcf()
-            for ax in fig.axes:
-                if ax.get_xlabel():
-                    ax.set_xlabel('Vsys [km/s]')
-                if ax.get_ylabel() and ('Kp' in ax.get_ylabel() or 'K_p' in ax.get_ylabel()):
-                    ax.set_ylim(bottom=0)
-                legend = ax.get_legend()
-                if legend is not None:
-                    legend.remove()
-            # First panel is POSEIDON's Kp-Vsys image; ensure positive Kp only
-            # even if the backend uses a different y-axis label.
-            for ax in fig.axes:
-                if ax.images:
-                    ax.set_ylim(0, float(kp[-1]))
-                    ax.set_xlabel('Vsys [km/s]')
-                    ax.set_ylabel('Kp [km/s]')
-            fig.savefig(dest / 'kp_vsys.png', dpi=180, bbox_inches='tight')
-            plt.close(fig)
+        plot_kp_vsys(kp, vsys, combined, dest / 'kp_vsys.png',
+                     molecule=molecule, kp_expected=kp_expected)
         (dest / 'combination.json').write_text(json.dumps({
             'planet': planet, 'molecule': molecule, 'sysrem': sysrem,
             'instruments': list(instruments), 'seeds': list(seeds),
             'n_maps': len(selected), 'expected_kp_kms': kp_expected,
             'aggregation': 'weighted_mean_of_raw_ccf_maps',
-            'plot_normalization': 'POSEIDON.plot_CCF_Kp_Vsys',
+            'plot_normalization': 'ExoAtmoSim.off_trail_background_zscore',
             'plot_kp_min_kms': 0.0,
             'weight_kind': 'median_exposure_snr_squared_with_missing_file_equal_fallback',
             'weights': weight_info,
