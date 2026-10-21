@@ -215,8 +215,7 @@ def cross_correlate_run(config, *, seed=42, sysrem=5, species=('O2','O3','H2O'),
     from astropy.io import fits
     from POSEIDON.high_res import (remove_outliers, fit_uncertainties,
                                   prepare_high_res_data, read_high_res_data,
-                                  cross_correlate, plot_CCF_phase_RV,
-                                  plot_CCF_Kp_Vsys)
+                                  cross_correlate)
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
@@ -343,14 +342,8 @@ def cross_correlate_run(config, *, seed=42, sysrem=5, species=('O2','O3','H2O'),
                                     ('kp_axis.fits', kp), ('vsys_axis.fits', vsys)]:
                 fits.writeto(output / filename, array, overwrite=overwrite)
             phi = np.asarray(data[names[0]]['phi'], float)
-            fig, _ = plot_CCF_phase_RV(phi / (2*np.pi), rv, CCF_phase_RV=phase_rv,
-                                       save_file_path=None)
-            fig.savefig(output / 'phase_rv.png', dpi=180)
-            plt.close('all')
-            fig, _ = plot_CCF_Kp_Vsys(kp, vsys, CCF_Kp_Vsys=kpmap,
-                                      label=molecule, Kp_expected=kp_expected,
-                                      Vsys_expected=0., plot_slice=True,
-                                      save_file_path=None)
-            fig.savefig(output / 'kp_vsys.png', dpi=180)
-            plt.close('all')
+            from .cc_plots import plot_phase_rv, plot_kp_vsys
+            plot_phase_rv(phi, rv, phase_rv, output / 'phase_rv.png')
+            plot_kp_vsys(kp, vsys, kpmap, output / 'kp_vsys.png',
+                         molecule=molecule, kp_expected=kp_expected)
     return out / f'sysrem_{sysrem}'
