@@ -233,31 +233,48 @@ def make_native_viola_observation(schedule, rv_star, rv_planet, transit_weight,
         raise ValueError('VIOLA internal sampling must be finite and >= max(900000, 3*R)')
     n_hi = int(np.ceil(np.log((grid[-1]+margin)/(grid[0]-margin))*r_sample))+1
     high = np.geomspace(grid[0]-margin, grid[-1]+margin, n_hi)
-    provider = phoenix_provider or PhoenixSpectrumProvider.from_config(cfg, config_path=config_path)
-    provider = replace(provider, wavelength_min_um=(high[0]-1.)/1000.,
-                       wavelength_max_um=(high[-1]+1.)/1000.)
-    star = provider.get_spectrum(Star.from_config(cfg))
-    if star.wavelength_medium != 'air':
-        raise ValueError('PHOENIX must be in AIR nm')
-    if high[0] < star.wavelength_nm[0] or high[-1] > star.wavelength_nm[-1]:
-        raise ValueError('PHOENIX does not cover VIOLA high-resolution model grid')
-    star_shape = calibrate_phoenix_flux(star.wavelength_nm, star.flux_erg_s_cm2_nm,
-                                       magnitude, band,
-                                       magnitude_system='Vega')
+    stellar_source = str(cfg.get('stellar_source', 'PHOENIX')).upper()
+    if stellar_source == 'PHOENIX':
+        provider = phoenix_provider or PhoenixSpectrumProvider.from_config(cfg, config_path=config_path)
+        provider = replace(provider, wavelength_min_um=(high[0]-1.)/1000.,
+                           wavelength_max_um=(high[-1]+1.)/1000.)
+        star = provider.get_spectrum(Star.from_config(cfg))
+        if star.wavelength_medium != 'air':
+            raise ValueError('PHOENIX must be in AIR nm')
+        if high[0] < star.wavelength_nm[0] or high[-1] > star.wavelength_nm[-1]:
+            raise ValueError('PHOENIX does not cover VIOLA high-resolution model grid')
+        star_wave = np.asarray(star.wavelength_nm, float)
+        surface_flux = np.asarray(star.flux_erg_s_cm2_nm, float)
+    elif stellar_source == 'BLACKBODY':
+        # Smooth stellar continuum for planet-only line injection tests.
+        # Magnitude calibration (below) sets the photon budget, not radius/distance.
+        temperature = cfg.get_float('Teff')
+        if not np.isfinite(temperature) or temperature <= 0:
+            raise ValueError('BLACKBODY requires finite positive Teff [K]')
+        star_wave = high.copy()  # instrument/model wavelength convention: AIR nm
+        lam_m = star_wave * 1e-9
+        exponent = H * C / (lam_m * K_B * temperature)
+        surface_flux = (2. * H * C**2 / lam_m**5) / np.expm1(exponent)
+        if not np.isfinite(surface_flux).all() or np.any(surface_flux <= 0):
+            raise ValueError('Non-finite stellar blackbody continuum')
+    else:
+        raise ValueError('VIOLA stellar_source must be PHOENIX or BLACKBODY')
+    star_shape = calibrate_phoenix_flux(star_wave, surface_flux,
+                                       magnitude, band, magnitude_system='Vega')
     # Ensure normalization at VIOLA band midpoint, not extended provider bounds.
     center = 0.5*(grid[0]+grid[-1])
     fnu0 = FNU0_VEGA[band]
     reference = C/(center*1e-9)**2 * fnu0*10**(-0.4*magnitude)*1e-6
-    star_shape *= reference/np.interp(center, star.wavelength_nm, star_shape)
+    star_shape *= reference/np.interp(center, star_wave, star_shape)
     original_stellar_flux = star_shape.copy()
     # Apply stellar rotation ONCE, in the stellar rest frame, before Doppler
     # shifting and before multiplying planet/telluric transmission. Never
     # convolve the star separately with the instrument LSF here.
     if vsini > 0:
         star_wave, star_shape = broaden_spectrum(
-            star.wavelength_nm, star_shape, resolution=None, vsini_kms=vsini)
+            star_wave, star_shape, resolution=None, vsini_kms=vsini)
     else:
-        star_wave = star.wavelength_nm
+        star_wave = star_wave
     # PWV is sampled once per exposure and used for the SkyCalc background.
     # The external HDF5 library was generated with its own atmospheric profile;
     # PWV (mm) is NOT interchangeable with RH (%).
@@ -295,7 +312,7 @@ def make_native_viola_observation(schedule, rv_star, rv_planet, transit_weight,
         raise ValueError(f'Planetary FITS covers {pw[0]:.3f}-{pw[-1]:.3f} nm, '
                          f'but VIOLA {band} needs at least {required_low:.3f}-{required_high:.3f} nm. '
                          'Re-run exoatmosim spectrum with instrument VIOLA_'+band)
-    if np.any(np.diff(star.wavelength_nm) <= 0):
+    if np.any(np.diff(star_wave) <= 0):
         raise ValueError('PHOENIX wavelength grid not monotonic')
     output_dir = Path(output_dir).resolve()
     planned = [output_dir/name for name in ('wave_0.fits','order_0.fits','stellar_flux_0.fits',
@@ -304,7 +321,7 @@ def make_native_viola_observation(schedule, rv_star, rv_planet, transit_weight,
         raise FileExistsError('VIOLA native outputs exist; use --overwrite')
     from .viola_plots import plot_stellar_spectrum_comparison
     stellar_diagnostic = plot_stellar_spectrum_comparison(
-        output_dir, star.wavelength_nm, original_stellar_flux,
+        output_dir, star_wave, original_stellar_flux,
         star_wave, star_shape, vsini)
     print(f'Stellar spectrum comparison: {stellar_diagnostic}')
     # Remove legacy duplicate only when regenerating an existing observation.
