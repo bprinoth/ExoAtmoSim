@@ -38,6 +38,17 @@ class CrossCorrelationTests(unittest.TestCase):
                 'Ms 1.0\nMp 0.001\nP 365.25\ninclination 90\necc 0.6\n')
             self.assertAlmostEqual(expected_planet_kp(config) / kp, 1.25, places=8)
 
+    def test_read_observation_berv_uses_fifth_column(self):
+        import tempfile
+        from exoatmosim.cc import read_observation_berv
+        with tempfile.TemporaryDirectory() as d:
+            obs = Path(d) / 'obs_times'
+            obs.write_text(
+                '58926.20 2020-03-18T04:51:17 150.0 1.56 21.69844816\\n'
+                '58926.21 2020-03-18T05:01:17 150.0 1.49 21.68244106\\n')
+            np.testing.assert_allclose(
+                read_observation_berv(d), [21.69844816, 21.68244106])
+
     def test_cli_routes_stage(self):
         from exoatmosim.cli import main
         with patch('exoatmosim.cc.cross_correlate_run', return_value=Path('cc')) as fn:
