@@ -198,7 +198,12 @@ class RVTraceEstimator:
         ecc_anomaly = ke.eccentricAnomaly(self.bjds)
         node = np.radians(self.pob)
 
-        self.true_anomaly = 2. * np.arctan(np.sqrt((1. + self.ecc) / (1. - self.ecc)) * np.tan(ecc_anomaly / 2.))
+        # Use arctan2 for quadrant safety, then unwrap along observation time.
+        # A 2*pi wrap is not a physical jump in radial velocity.
+        E = np.asarray(ecc_anomaly, float)
+        anomaly = 2. * np.arctan2(np.sqrt(1. + self.ecc) * np.sin(E / 2.),
+                                 np.sqrt(1. - self.ecc) * np.cos(E / 2.))
+        self.true_anomaly = np.unwrap(anomaly)
 
         # in matrix form
 
@@ -315,133 +320,86 @@ class RVTraceEstimator:
         self.RVplanet = -1. * (self.RVstar) * (self.Ms / self.Mp).decompose()
               
     def plot_doppler_trace(self, RF='system', RV_ext=100, save=True):
-        #print('[INFO] Calculating the RV extent of the star')
-        
-        # plotting in different restframes
-        
-        true_anomaly_sorted_idx = np.argsort(self.true_anomaly)
-        true_anomaly_sorted = np.take_along_axis(self.true_anomaly, true_anomaly_sorted_idx, axis=0)
-        RVstar_sorted = np.take_along_axis(self.RVstar, true_anomaly_sorted_idx, axis=0)
-        vstar_sorted = np.take_along_axis(self.vstar, true_anomaly_sorted_idx, axis=0)  + RVstar_sorted
-        vplanet_sorted = np.take_along_axis(self.RVplanet, true_anomaly_sorted_idx, axis=0)
-        berv_sorted = np.take_along_axis(self.berv, true_anomaly_sorted_idx, axis=0)
-        tel = - self.vsys + berv_sorted
-        self.true_phases = true_anomaly_sorted / (2 * np.pi)
-        transit_sorted =  np.take_along_axis(self.transit, true_anomaly_sorted_idx, axis=0)
-        self.obtimes = np.take_along_axis(self.obstimes, true_anomaly_sorted_idx, axis=0)
-            
-        #else:
-        # true_anomaly_sorted = self.true_anomaly
-        # RVstar_sorted = self.RVstar
-        # vstar_sorted = self.vstar.T +  RVstar_sorted
-        # vplanet_sorted = self.RVplanet
-        # berv_sorted = self.berv
-        # tel = - self.vsys + berv_sorted
-        # true_phases = self.true_phases * 2 * np.pi
-        # transit_sorted =  self.transit
-        
-        
-        if RF=='star':
-            
-            self.RVs_RM = vstar_sorted - RVstar_sorted
-            self.RVs_planet = vplanet_sorted - RVstar_sorted
-            self.RVs_star = RVstar_sorted - RVstar_sorted
-            self.RVs_tel = tel - RVstar_sorted
-            
-            print(f"[INFO] Plot in stellar restframe")
-            
-        
-        elif RF=='planet':
-            self.RVs_RM = vstar_sorted - vplanet_sorted
-            self.RVs_planet = vplanet_sorted - vplanet_sorted
-            self.RVs_star = RVstar_sorted - vplanet_sorted
-            self.RVs_tel = tel - vplanet_sorted
-            
-            print(f"[INFO] Plot in planetary restframe")
-        
-        
-        elif RF=='obs':
-            self.RVs_RM = vstar_sorted - tel
-            self.RVs_planet = vplanet_sorted - tel
-            self.RVs_star = RVstar_sorted - tel
-            self.RVs_tel = tel - tel
-            
-            print(f"[INFO] Plot in observatory restframe")
-        
-        elif RF=='berv':
-      
-            self.RVs_RM = vstar_sorted + self.vsys
-            self.RVs_planet = vplanet_sorted + self.vsys
-            self.RVs_star = RVstar_sorted + self.vsys
-            self.RVs_tel = tel + self.vsys
-            
-            print(f"[INFO] Plot in berv restframe")
+        """Plot velocity tracks against transit-centered orbital phase.
 
-        elif RF=='system':
-            self.RVs_RM = vstar_sorted
-            self.RVs_planet = vplanet_sorted
-            self.RVs_star = RVstar_sorted
-            self.RVs_tel = tel
+        The original chart divided true anomaly by 2*pi and called it phase.
+        In eccentric orbits, true anomaly at transit generally is NOT zero.
+        The right axis reports the corresponding true anomaly in degrees.
+        """
+        from exoatmosim.plotting import publication_style
 
-            print(f"[INFO] Plot in system restframe")
-            
-        
-        
-        elif RF=='all':
-            
-            print(f"[INFO] Plotting in all restframes")
-            
-            self.plot_doppler_trace(RF='star')
-            self.plot_doppler_trace(RF='planet')
-            self.plot_doppler_trace(RF='system')
-            self.plot_doppler_trace(RF='obs')
-            self.plot_doppler_trace(RF='berv')
-            
+        if RF == 'all':
+            for frame in ('star', 'planet', 'system', 'obs', 'berv'):
+                self.plot_doppler_trace(RF=frame, RV_ext=RV_ext, save=save)
+            return
+
+        time = np.asarray(self.bjds, float)
+        order = np.argsort(time)
+        time = time[order]
+        phase = ((time - self.transitC) / self.period + 0.5) % 1.0 - 0.5
+        # The observing window should be shorter than one orbit; prevent
+        # rendering artificial lines across the phase-wrap discontinuity.
+        if np.any(np.diff(phase) < 0):
+            raise ValueError('Observation window crosses the orbital phase wrap; '
+                             'plot the transit-centered observing window instead')
+        true_anomaly = np.unwrap(np.asarray(self.true_anomaly, float)[order])
+        anomaly_deg = np.degrees(true_anomaly)
+        # Choose a continuous branch near 180 deg for conjunction, instead
+        # of jumping between -180 and +180 around the plotted transit.
+        anomaly_deg += 360. * np.round((180. - np.median(anomaly_deg)) / 360.)
+        self.true_phases = np.asarray(self.true_anomaly)[order] / (2 * np.pi)
+        self.obtimes = np.asarray(self.obstimes)[order]
+        rv_star = np.asarray(self.RVstar, float)[order]
+        rv_planet = np.asarray(self.RVplanet, float)[order]
+        rm = np.asarray(self.vstar, float)[order] + rv_star
+        berv = np.asarray(self.berv, float)[order]
+        telluric_rv = -self.vsys + berv
+
+        if RF == 'star':
+            curves = (rm-rv_star, rv_planet-rv_star, np.zeros_like(rv_star))
+        elif RF == 'planet':
+            curves = (rm-rv_planet, np.zeros_like(rv_planet), rv_star-rv_planet)
+        elif RF == 'obs':
+            curves = (rm-telluric_rv, rv_planet-telluric_rv,
+                      rv_star-telluric_rv)
+        elif RF == 'berv':
+            curves = (rm+self.vsys, rv_planet+self.vsys,
+                      rv_star+self.vsys)
         else:
-            self.RVs_RM = vstar_sorted.T - RVstar_sorted
-            self.RVs_planet = vplanet_sorted
-            self.RVs_star = RVstar_sorted
-            self.RVs_tel = tel
+            curves = (rm, rv_planet, rv_star)
+            if RF != 'system':
+                print(f'[WARNING] Unknown rest frame {RF!r}; using system')
 
-            print(f"[INFO] I don't know this restframe, I am plotting in the system restframe")
+        self.RVs_RM, self.RVs_planet, self.RVs_star = curves
+        self.RVs_tel = telluric_rv
+        inside = np.asarray(self.transit, float)[order] < 1.0
 
-
-        
-        #RV_ext = np.max(np.abs(np.concatenate()))
-        
-        if RF != 'all':
-            plt.figure(figsize=(6,6))
-            plt.title(f'Restframe {RF}')
-
-
-            colors = plt.rcParams['axes.prop_cycle'].by_key()['color'][:4]
-
-            # RM
-            plt.plot(self.RVs_RM[transit_sorted < 1], true_anomaly_sorted[transit_sorted < 1] / (2 * np.pi), c=colors[0], label='RM', lw=3, ls='dashed')  # Use self.transit
-            # planet
-            plt.plot(self.RVs_planet, true_anomaly_sorted / (2 * np.pi),c=colors[1],  label='planet', lw=4)
-            # star
-            plt.plot(self.RVs_star, true_anomaly_sorted / (2 * np.pi), c=colors[2], ls='solid', label='star', lw=3)
-            # tellurics:
-            #plt.plot(self.RVs_tel, true_anomaly_sorted / (2 * np.pi), lw=4, c=colors[3], ls='dotted', label='tellurics')  # Use self.vsys
-
-
-                
-            # Contact markers are only meaningful when both states are sampled.
-            in_transit = transit_sorted < 1.0
-            changes = np.flatnonzero(np.diff(in_transit.astype(int)))
-            for change in changes:
-                plt.axhline(true_anomaly_sorted[change] / (2 * np.pi),
-                            c='k', lw=1, ls='dashed')
-                
-
-            #plt.xlim(-RV_ext, RV_ext)
-            plt.ylabel('Phase')
-            plt.xlabel('RV [km/s]')
-            plt.legend(ncols=2)
-            plt.tight_layout()
-            
-
-            #plt.show()
+        with publication_style():
+            fig, ax = plt.subplots(figsize=(7.2, 6.2), layout='constrained')
+            colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+            ax.plot(curves[1], phase, color=colors[1], lw=2.3, label='Planet')
+            ax.plot(curves[2], phase, color=colors[2], lw=1.7, label='Star')
+            # Mask RM outside the transit so it cannot connect separate segments.
+            ax.plot(np.where(inside, curves[0], np.nan), phase, color=colors[0],
+                    lw=1.8, ls='--', label='RM')
+            for index in np.flatnonzero(np.diff(inside.astype(int))):
+                ax.axhline(phase[index], color='0.55', ls=':', lw=1)
+            ax.axhline(0, color='0.5', ls=':', lw=1)
+            ax.set(xlabel='RV (km/s)', ylabel='Orbital phase relative to transit',
+                   title=f'{RF.capitalize()} rest frame')
+            if RV_ext is not None and RV_ext > 0:
+                ax.set_xlim(-RV_ext, RV_ext)
+            ax.legend(loc='best', fontsize=10)
+            right = ax.twinx()
+            right.set_ylim(ax.get_ylim())
+            right.set_yticks(ax.get_yticks())
+            right.set_yticklabels([
+                f'{np.interp(tick, phase, anomaly_deg):.1f}'
+                if phase[0] <= tick <= phase[-1] else ''
+                for tick in ax.get_yticks()
+            ])
+            right.set_ylabel('True anomaly (deg)')
             if save:
-                plt.savefig(f'{self.dp}/RVTraceEstimator_{RF}.png', dpi=180)
+                fig.savefig(f'{self.dp}/RVTraceEstimator_{RF}.png', dpi=180)
+            plt.close(fig)
+            return fig

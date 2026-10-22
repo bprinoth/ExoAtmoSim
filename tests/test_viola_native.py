@@ -143,6 +143,20 @@ class ViolaNativeTests(unittest.TestCase):
             self.assertEqual(plot_observing_conditions(table, path), path)
             self.assertTrue(path.is_file())
 
+    def test_no_tellurics_plot_omits_pwv_line(self):
+        from astropy.table import Table
+        from unittest.mock import patch
+        from exoatmosim.observing.conditions import plot_observing_conditions
+        from matplotlib.axes import Axes
+        table = Table({'midpoint_jd_utc': [2450000., 2450000.01],
+                       'pwv_mm': [2., 3.], 'airmass': [1.1, 1.2]})
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.object(Axes, 'plot', autospec=True, wraps=None) as plot:
+                plot_observing_conditions(table, Path(tmp) / 'conditions.png',
+                                          tellurics_enabled=False)
+                # Only the airmass line should be drawn, not the PWV curve.
+                self.assertEqual(plot.call_count, 1)
+
     def test_stellar_plot_call_is_inside_viola_observation_not_pwv_sampler(self):
         import ast
         import inspect

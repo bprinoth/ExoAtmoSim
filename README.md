@@ -18,7 +18,7 @@ FastChem, POSEIDON, PHOENIX archival retrieval, and orbital dependencies must be
 
 ## Modular commands and Python API
 
-The public CLI supports five stages: `config` retrieves/reuses a planet configuration; `atmosphere` computes the T–P and chemistry diagnostics; `spectrum` computes a POSEIDON transmission spectrum and writes the seed-specific FITS model; `observe` uses that existing FITS model to synthesize observations without re-running radiative transfer; and `simulate` runs the end-to-end workflow. Use `exoatmosim <stage> --help` for arguments.
+The modular CLI provides the following stages: `config` retrieves/reuses a planet configuration; `atmosphere` computes the T–P and chemistry diagnostics; `spectrum` computes a POSEIDON transmission spectrum and writes the seed-specific FITS model; `observe` uses that existing FITS model to synthesize observations without re-running radiative transfer; `template` generates an individual non-bulk molecular template, `cc` performs POSEIDON/SYSREM cross-correlation, `combine` averages compatible velocity maps across instrument–seed combinations, and `simulate` runs the end-to-end workflow. Use `exoatmosim <stage> --help` for arguments.
 
 ```bash
 exoatmosim config --planet "TOI-1842 b" --instrument CRIRES_K
@@ -30,6 +30,59 @@ exoatmosim observe data/TOI-1842_b/config --seed 42 --snr 100
 Equivalent Python functions are exposed from `exoatmosim`: `make_config`, `calculate_atmosphere`, `calculate_spectrum`, `simulate_observation`, and `simulate`. `observe` requires an existing matching planetary model; it will not calculate a missing one. For now, the supported radiative-transfer backend is POSEIDON; petitRADTRANS is planned.
 
 Examples in `examples/` are short, commented API usage demonstrations, not competing implementations. See `examples/README.md`.
+
+## One-pass molecular templates and cross-correlation (PR #10 development branch)
+
+Generate the full planetary spectrum and **all non-bulk species opacity templates** in a
+single POSEIDON setup. The complete chemistry and mean molecular weight (MMW)
+are retained when constructing the atmosphere; species contributions are
+evaluated with the original pressure–radius structure. This avoids repeated
+high-resolution opacity loading, although each molecular contribution still
+requires radiative transfer.
+
+```bash
+exoatmosim spectrum data/TRAPPIST-1_b/config_viola_k --seed 0 --create-templates --overwrite
+exoatmosim observe data/TRAPPIST-1_b/config_viola_k --seed 0 --overwrite
+exoatmosim cc data/TRAPPIST-1_b/config_viola_k --seed 0 --species H2O --sysrem 3 --overwrite
+```
+
+The templates are saved as `simulations/VIOLA_K/seed_0000/templates/<species>.fits`.
+The `--create-templates` switch automatically includes each species not listed in
+`bulk_species`. It does **not** force an artificially detectable molecular
+feature: a gas can be genuinely weak or absent in a cold atmosphere. The current
+development implementation raises an error for an effectively flat contribution
+(peak-to-peak transit depth ≤ 1e-12); this check is diagnostic and may need
+refinement for physically valid low-abundance cases. The legacy
+`exoatmosim template ... --species H2O` command remains available.
+
+Combine precomputed (K_p)–(V_{\\rm sys}) maps from multiple instruments and
+random seeds without rerunning the observation or CC stages:
+
+```bash
+exoatmosim combine --planet "WASP-189 b" \
+  --instruments VIOLA_J VIOLA_H VIOLA_K \
+  --seeds 1 2 3 4 --species O2 O3 H2O --sysrem 5 --overwrite
+```
+
+The combined raw maps use an S/N²-weighted mean based on the median VIOLA
+S/N per exposure (equal-weight fallback when S/N files are missing). A separate
+ExoAtmoSim-native background-standardized map is plotted for nonnegative (K_p) with axes labelled
+`Vsys [km/s]` and `Kp [km/s]`. The statistical significance of the
+resulting visualization is **not** a calibrated false-alarm probability.
+See [CC_QUICKSTART.md](CC_QUICKSTART.md) for velocity-frame conventions,
+input requirements, and outputs. The implementation is in
+[PR #10](https://github.com/bprinoth/ExoAtmoSim/pull/10) until merged.
+
+## VIOLA line-isolation diagnostics
+
+Set `stellar_source blackbody` in the instrument configuration to simulate
+a smooth stellar continuum without PHOENIX absorption lines, while retaining
+the magnitude-calibrated stellar photon budget and VIOLA detector noise.
+Setting `tellurics False` omits telluric absorption; the PWV diagnostic then
+explicitly states that no tellurics were considered. VIOLA observing-condition
+plots also include the median per-exposure S/N from `snr_res_0.fits`.
+These options are useful for injected-signal recovery experiments, not
+physical no-star simulations. See [VIOLA_QUICKSTART.md](VIOLA_QUICKSTART.md).
 
 ## Example complete simulation
 
@@ -305,3 +358,15 @@ DejaVu Sans; an explicit `EXOATMOSIM_FONT_PATH` or `publication_style(font_path=
 overrides the package default. Upstream font and license:
 https://github.com/google/fonts/tree/main/ofl/montserrat
 
+
+
+## Native cross-correlation figures
+
+The `cc` and `combine` stages now use native ExoAtmoSim plotting rather than
+POSEIDON's plotting functions. `phase_rv.png` is a compact true-anomaly versus
+RV diagnostic. `kp_vsys.png` contains a nonnegative-Kp map and a velocity
+slice through the expected Kp, with a compact colorbar and no legend.
+The plot-only score is (CCF − off-trail mean) / off-trail standard deviation,
+where off-trail refers to |Vsys| ≥ 50 km/s (phase–RV uses |RV| ≥ 250 km/s).
+These are **not** POSEIDON's exact per-map significance algorithm or
+calibrated detection significances. The raw FITS CCF arrays remain unchanged.

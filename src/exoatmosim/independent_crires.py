@@ -135,11 +135,19 @@ def run(config_path, stellar_npz, *, output=None, snr=None, seed=42, overwrite=F
     run_manifest_path = out / 'run_manifest.json'
     if run_manifest_path.exists():
         previous = json.loads(run_manifest_path.read_text())
-        if (previous.get('config_sha256') != cfg_digest or
-            previous.get('instrument') != instrument or
+        if (previous.get('instrument') != instrument or
             previous.get('noise_seed') != seed):
-            raise ValueError('Existing simulation run has different instrument, seed or config. '
-                             'Select another --output directory or --seed; refusing to mix results.')
+            raise ValueError('Existing simulation run has a different instrument or seed. '
+                             'Select a matching output directory; refusing to mix results.')
+        if previous.get('config_sha256') != cfg_digest:
+            if not overwrite:
+                raise ValueError('Existing simulation run has a different config. '
+                                 'Pass --overwrite to regenerate observations with '
+                                 'the updated config, or select another seed.')
+            print('[WARNING] --overwrite: replacing observation products made '
+                  'with a different config. The existing planetary spectrum '
+                  'and molecular templates are not regenerated; rerun spectrum '
+                  'and template separately if their inputs changed.')
     out.mkdir(parents=True, exist_ok=True)
     snapshot_path = out / 'config'
     original = config_path.read_bytes()
@@ -235,7 +243,10 @@ def run(config_path, stellar_npz, *, output=None, snr=None, seed=42, overwrite=F
             pf = np.asarray(hdul[2].data, float)
         written = make_native_viola_observation(schedule, rv_star, rv_planet, weight,
                   cfg, config_path, pw, pf, out, seed=seed, overwrite=overwrite)
-        plot_observing_conditions(conditions, diagnostic / 'observing_conditions.png')
+        plot_observing_conditions(
+            conditions, diagnostic / 'observing_conditions.png',
+            snr_fits=out / 'snr_res_0.fits',
+            tellurics_enabled=cfg.get_bool('tellurics', False))
         write_observation_times(out / 'obs_times', schedule)
         run_manifest_path.write_text(json.dumps({
             'instrument':instrument,'noise_seed':seed,'config_sha256':cfg_digest,
@@ -319,7 +330,8 @@ def run(config_path, stellar_npz, *, output=None, snr=None, seed=42, overwrite=F
     results = simulate_orders(orders, sw, sf, pw, pf, rv_star, rv_planet,
                               weight, snr=use_snr, seed=seed,
                               stellar_observer_frame=False, **extra)
-    plot_observing_conditions(conditions, diagnostic / 'observing_conditions.png')
+    plot_observing_conditions(conditions, diagnostic / 'observing_conditions.png',
+                              tellurics_enabled=cfg.get_bool('tellurics', False))
     written = write_spectral_orders(results, out, overwrite=overwrite)
     # Mandatory quick-look diagnostic: verify that an actual order was synthesized.
     import matplotlib
