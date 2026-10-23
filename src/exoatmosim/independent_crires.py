@@ -314,19 +314,54 @@ def run(config_path, stellar_npz, *, output=None, snr=None, seed=42, overwrite=F
     print(f'Stellar spectrum comparison: {stellar_diagnostic}')
     # Broaden the POSEIDON transmission to instrument resolution (without planetary rotation).
     pw, pf = broaden_spectrum(pw, pf, resolution=resolution)
-    use_snr = float(snr) if snr is not None else cfg.get_float('SNR', 100.0)
+    from exoatmosim.andes_etc import AndesETCGrid, spectrum_snr
+    etc_mode = instrument == 'ANDES' and str(cfg.get('noise_model', 'andes_etc')).lower() == 'andes_etc'
+    if instrument == 'ANDES' and str(cfg.get('noise_model', 'andes_etc')).lower() not in ('andes_etc', 'constant'):
+        raise ValueError('ANDES noise_model must be andes_etc or constant')
+    if etc_mode:
+        if snr is not None:
+            raise ValueError('ANDES ETC derives S/N from nine CSVs; do not pass --snr')
+        etc_grid = AndesETCGrid(config_path.parent / 'andes_etc')
+        if not np.isclose(schedule.duration_seconds, cfg.get_float('exposure_time')):
+            raise ValueError('ETC exposure_time must match the observation integration time')
+        exposure_airmass = np.asarray(conditions['airmass'], float)
+        def use_snr(index, wavelengths):
+            return spectrum_snr(etc_grid, wavelengths, exposure_airmass, resolution)
+        print('[ANDES ETC] Using 9 local CSVs; wavelength- and airmass-dependent S/N per resel')
+    else:
+        use_snr = float(snr) if snr is not None else cfg.get_float('SNR', 100.0)
     extra = {}
     if cfg.get_bool('tellurics', False):
         from exoatmosim.observing.telluric_grid import grid_transmission, resolve_grid_file
         from exoatmosim.observing.telluric_utils import plot_tellurics
         # Evaluate optical-depth interpolation at the instrument's native air-nm
         # sample wavelengths; no coarse 2000-point telluric sampling.
-        grid = np.unique(np.concatenate(orders))
+        telluric_wavelengths = np.unique(np.concatenate(orders))
         tw, transmission = grid_transmission(
-            schedule, grid, pwv_mm=np.asarray(conditions['pwv_mm'],float),
+            schedule, telluric_wavelengths, pwv_mm=np.asarray(conditions['pwv_mm'],float),
             grid_file=resolve_grid_file(cfg.get('observatory','paranal'), config_path=config_path))
         plot_tellurics(tw, transmission, schedule, diagnostic / 'telluric_transmission.png')
         extra = dict(telluric_wavelength_nm=tw, telluric_transmission=transmission)
+    if etc_mode:
+        # Some official ETC bins contain zero source electrons, notably in
+        # deep absorption/throughput gaps. A Gaussian sigma from SNR=0 is
+        # undefined. Exclude only those samples from the computational
+        # wavelength segments, without inventing a detection/noise floor.
+        masked_orders = []
+        removed = 0
+        for index, wavelengths in enumerate(orders):
+            predicted = use_snr(index, wavelengths)
+            valid = np.all(np.isfinite(predicted) & (predicted > 0), axis=0)
+            discarded = int(np.count_nonzero(~valid))
+            removed += discarded
+            if np.count_nonzero(valid) < 2:
+                raise ValueError(f'ANDES segment {index}: fewer than two '
+                                 'positive-ETC-SNR wavelengths remain')
+            masked_orders.append(wavelengths[valid])
+        orders = masked_orders
+        if removed:
+            print(f'[ANDES ETC] Excluded {removed} wavelength samples with '
+                  'zero ETC source S/N (all exposure airmasses checked).')
     results = simulate_orders(orders, sw, sf, pw, pf, rv_star, rv_planet,
                               weight, snr=use_snr, seed=seed,
                               stellar_observer_frame=False, **extra)
@@ -356,11 +391,14 @@ def run(config_path, stellar_npz, *, output=None, snr=None, seed=42, overwrite=F
                delimiter=',', comments='')
     run_manifest_path.write_text(json.dumps({
         'instrument': instrument, 'noise_seed': seed, 'config_sha256': cfg_digest,
-        'config_snapshot': 'config', 'n_exposures': schedule.n_exposures, 'constant_snr': use_snr,
+        'config_snapshot': 'config', 'n_exposures': schedule.n_exposures, 'noise_model': 'andes_etc' if etc_mode else 'constant',
+        'constant_snr': None if etc_mode else use_snr,
+        'etc_source': 'andes_etc' if etc_mode else None,
         'observer_frame_stellar_input': False,
     }, indent=2) + '\n')
     print(f'Stellar source: {stellar_source}')
-    print(f'Wrote {len(results)} {instrument} orders for {schedule.n_exposures} exposures, SNR={use_snr:g}')
+    snr_label = 'ETC-calibrated' if etc_mode else f'{use_snr:g}'
+    print(f'Wrote {len(results)} {instrument} orders for {schedule.n_exposures} exposures, SNR={snr_label}')
     print(f'Observation window: {schedule.window_hours:.3f} h ({schedule.mode})')
     print(f'Output: {out} ({len(written)} verified FITS files)')
     return written

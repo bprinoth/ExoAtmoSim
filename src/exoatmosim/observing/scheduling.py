@@ -81,6 +81,8 @@ def _sky_location(cfg: Config):
         raise ImportError('Astropy is required for target altitude and BERV. Install exoatmosim[orbits].') from exc
     # legacy config convention: RA hourangle, DEC degrees, lat/long degrees.
     target = SkyCoord(ra=cfg['RA'], dec=cfg['DEC'], unit=(u.hourangle, u.deg), frame='icrs')
+    # Every observatory uses the actual config coordinates. In particular,
+    # ANDES configs are initialized with Cerro Armazones values by nasa.py.
     location = EarthLocation.from_geodetic(
         lon=cfg.get_float('long') * u.deg,
         lat=cfg.get_float('lat') * u.deg,

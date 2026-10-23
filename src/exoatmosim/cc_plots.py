@@ -94,6 +94,34 @@ def plot_kp_vsys(kp, vsys, ccf, destination, *, molecule=None,
     return destination
 
 
+def normalize_phase_rv_rows(ccf):
+    """Display-only row-centered, row-standardized phase–RV CCF.
+
+    Keeps each exposure's velocity-dependent contrast while suppressing
+    exposure-wide offsets; flat or fully masked rows are left NaN.
+    No normalization is applied to the underlying FITS or Kp–Vsys CCF.
+    """
+    ccf = np.asarray(ccf, float)
+    if ccf.ndim != 2:
+        raise ValueError('Expected exposures x radial-velocity CCF matrix')
+    # POSEIDON phase–RV visualization scales each exposure separately.
+    # Do not use one global scatter: between-exposure offsets otherwise
+    # dominate the display as horizontal stripes. Keep saved FITS and
+    # Kp–Vsys CCF unchanged.
+    finite = np.isfinite(ccf)
+    count = finite.sum(axis=1)
+    row_mean = np.divide(np.where(finite, ccf, 0.).sum(axis=1),
+                         count, out=np.full(ccf.shape[0], np.nan), where=count > 0)
+    centered = np.where(finite, ccf - row_mean[:, None], np.nan)
+    row_std = np.nanstd(centered, axis=1, ddof=1)
+    usable = (count >= 3) & np.isfinite(row_std) & (row_std > 0)
+    if not np.any(usable):
+        raise ValueError('Cannot plot phase–RV: all exposure rows have zero scatter')
+    scaled = np.full_like(ccf, np.nan)
+    scaled[usable] = centered[usable] / row_std[usable, None]
+    return scaled
+
+
 def plot_phase_rv(phi, rv, ccf, destination):
     import matplotlib
     matplotlib.use('Agg')
@@ -109,10 +137,7 @@ def plot_phase_rv(phi, rv, ccf, destination):
     # Phase need not be monotonically increasing after eccentric geometry.
     order = np.argsort(phi)
     phi, ccf = phi[order], ccf[order]
-    noise = abs(rv) >= 250.
-    if np.count_nonzero(noise) < 2:
-        noise = np.ones(rv.shape, bool)
-    scaled = standardize_ccf(ccf, noise)
+    scaled = normalize_phase_rv_rows(ccf)
     bound = max(3., float(np.nanpercentile(np.abs(scaled), 99.9)))
     destination = Path(destination)
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -121,7 +146,7 @@ def plot_phase_rv(phi, rv, ccf, destination):
         image = ax.pcolormesh(rv, phi, scaled, shading='auto', cmap='inferno',
                               vmin=-bound, vmax=bound, rasterized=True)
         fig.colorbar(image, ax=ax, pad=.015, fraction=.028,
-                     label='CCF / background scatter')
+                     label='Row-centered CCF / row scatter')
         ax.set(xlabel='Radial velocity (km/s)', ylabel='True anomaly (rad)')
         fig.savefig(destination, dpi=190, bbox_inches='tight')
         plt.close(fig)

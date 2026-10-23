@@ -363,11 +363,53 @@ class PoseidonTransmissionModel:
             except ImportError as exc:
                 raise RuntimeError('POSEIDON spectral_contribution is required for '
                                    'fixed-structure templates') from exc
-            raw_full, labels, spectra = spectral_contribution(
+            returned = spectral_contribution(
                 poseidon_planet, poseidon_star, model, poseidon_atmosphere,
                 opacities, wl, spectrum_type='transmission',
                 save_spectrum=False, contribution_species_list=list(names),
                 bulk_species=False)
+            # Upstream POSEIDON documents (full, labels, spectra), but
+            # some installed forks return additional diagnostics. Identify
+            # the labels/spectra pair by validated types and shapes, never
+            # silently unpack an arbitrary fourth value as a spectrum.
+            if not isinstance(returned, (tuple, list)) or len(returned) < 3:
+                detail = f'type={type(returned).__name__}'
+                if hasattr(returned, 'shape'):
+                    detail += f', shape={returned.shape}'
+                if isinstance(returned, dict):
+                    detail += f', keys={list(returned)[:12]}'
+                raise RuntimeError(
+                    'POSEIDON spectral_contribution did not return the expected '
+                    '(full_spectrum, labels, component_spectra). '
+                    + detail + '. This may indicate a nonphysical atmosphere '
+                    'or an incompatible installed POSEIDON fork. Inspect '
+                    'POSEIDON.contributions.spectral_contribution before '
+                    'generating templates; refusing to fabricate contributions.')
+            raw_full = returned[0]
+            raw_array = np.asarray(raw_full)
+            if raw_array.squeeze().shape != (len(wl),):
+                raise RuntimeError('POSEIDON full contribution spectrum has '
+                                   f'unexpected shape {raw_array.shape}')
+            candidates = []
+            for j in range(1, len(returned) - 1):
+                raw_labels, raw_spectra = returned[j:j+2]
+                try:
+                    labels_try = list(raw_labels)
+                    if (not labels_try or
+                            not all(isinstance(label, (str, np.str_))
+                                    for label in labels_try)):
+                        continue
+                    shape = np.asarray(raw_spectra).shape
+                except (TypeError, ValueError):
+                    continue
+                if shape == (len(labels_try), len(wl)):
+                    candidates.append((labels_try, raw_spectra))
+            if len(candidates) != 1:
+                raise RuntimeError(
+                    'Cannot identify unique POSEIDON labels/spectra from '
+                    f'{len(returned)} return fields; types='
+                    f'{[type(x).__name__ for x in returned]}')
+            labels, spectra = candidates[0]
             labels = [str(label) for label in labels]
             arrays = np.asarray(spectra, float)
             if arrays.shape != (len(labels), len(wl)):

@@ -171,7 +171,7 @@ def order_arrays(run, index, n_exposures):
     vac = np.asarray(airtovac(wave), float)
     valid = np.isfinite(vac) & np.all(np.isfinite(flux) & (flux > 0), axis=0)
     if np.count_nonzero(valid) < 20:
-        raise ValueError(f'Order {index}: fewer than 20 usable wavelengths')
+        raise ValueError(f'Order {index}: fewer than 20 usable wavelengths ({np.count_nonzero(valid)}/{len(wave)})')
     return vac[valid] / 1000, flux[:, valid]
 
 
@@ -245,8 +245,18 @@ def cross_correlate_run(config, *, seed=42, sysrem=5, species=('O2','O3','H2O'),
         from astropy.io import fits
         n_exposures = np.asarray(fits.getdata(run / f'order_{order_ids[0]}.fits')).shape[0]
         phi, berv, weight, ecc, omega_rad = observation_orbit(run, n_exposures)
+        usable_names = []
+        skipped = {}
         for i, name in zip(order_ids, names):
-            wave_um, flux = order_arrays(run, i, n_exposures)
+            try:
+                wave_um, flux = order_arrays(run, i, n_exposures)
+            except ValueError as exc:
+                if 'fewer than 20 usable wavelengths' not in str(exc):
+                    raise
+                skipped[name] = str(exc)
+                print(f'[CC] Skipping {name}: {exc}')
+                continue
+            usable_names.append(name)
             wave_by_order = wave_um[np.newaxis, :]
             flux_by_order = flux[np.newaxis, :, :]
             _write_raw(prepared / name / 'data_raw.hdf5', wave_um, flux, phi, berv, weight)
@@ -255,9 +265,14 @@ def cross_correlate_run(config, *, seed=42, sysrem=5, species=('O2','O3','H2O'),
             prepare_high_res_data(str(prepared), name, 'transmission', 'sysrem',
                                   clean, wave_by_order, phi, uncertainty,
                                   sysrem_niter=sysrem, transit_weight=weight)
+        if not usable_names:
+            raise ValueError('No spectral segments have at least 20 usable wavelengths; '
+                             'ANDES computational segments are too short for cross-correlation')
+        names = usable_names
         (prepared / 'preparation.json').write_text(json.dumps({
             'sysrem': sysrem, 'phase_kind': 'true_anomaly_radians',
             'eccentricity': ecc, 'omega_rad': omega_rad, 'orders': names,
+            'skipped_short_orders': skipped,
         }, indent=2))
         if prepare_only:
             return prepared
@@ -265,6 +280,10 @@ def cross_correlate_run(config, *, seed=42, sysrem=5, species=('O2','O3','H2O'),
     if not metadata_path.is_file():
         raise FileNotFoundError(f'Missing preparation metadata: {metadata_path}')
     metadata = json.loads(metadata_path.read_text())
+    if cc_only:
+        names = metadata.get('orders', [])
+        if not names or any(name not in [f'order_{i}' for i in order_ids] for name in names):
+            raise ValueError('Prepared order selection does not match observed FITS')
     if (metadata.get('sysrem') != sysrem or
             metadata.get('phase_kind') != 'true_anomaly_radians' or
             metadata.get('orders') != names):

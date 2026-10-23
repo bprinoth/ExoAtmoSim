@@ -18,9 +18,29 @@ def make_config(planet: str, *, instrument: str = 'CRIRES_K',
                 refresh: bool = False, fresh: bool = False) -> Path:
     """Create or reuse a planet template (NASA is queried only if needed)."""
     from .backend_paths import discover_site_config
-    return resolve_config(None, planet=planet, site_config=discover_site_config(site_config),
+    path = resolve_config(None, planet=planet, site_config=discover_site_config(site_config),
                           data_dir=Path(data_dir), refresh_config=refresh, fresh=fresh,
                           instrument=instrument.upper())
+    if str(Config.from_file(path).get('instrument', '')).upper() == 'ANDES':
+        config = Config.from_file(path)
+        # Fix only the exact legacy Paranal defaults in existing ANDES configs;
+        # preserve deliberately customized site coordinates.
+        legacy = (config.get('observatory', '').lower() == 'paranal' and
+                  all(key in config for key in ('lat', 'long', 'elev')) and
+                  abs(config.get_float('lat') + 24.6276) < 1e-6 and
+                  abs(config.get_float('long') + 70.4051) < 1e-6 and
+                  abs(config.get_float('elev') - 2635) < 1e-3)
+        if legacy:
+            config.set('observatory', 'armazones')
+            config.set('lat', -24.5892)
+            config.set('long', -70.1916)
+            config.set('elev', 3046)
+            config.write(path)
+            print('[ANDES] Updated legacy Paranal defaults to Cerro Armazones '
+                  '(lat -24.5892, long -70.1916, elev 3046 m)')
+        from .andes_etc_inputs import scaffold_andes_etc
+        scaffold_andes_etc(path.parent)
+    return path
 
 
 def _locations(config: str | Path, seed: int):
@@ -206,7 +226,7 @@ def simulate_observation(config: str | Path, *, seed: int = 42, snr: float | Non
     if not model_path.is_file():
         raise FileNotFoundError(f'Planet model not found: {model_path}; run `exoatmosim spectrum` first')
     instrument = str(Config.from_file(path).get('instrument', '')).upper()
-    if not instrument.startswith('VIOLA_') and snr is None:
+    if not instrument.startswith('VIOLA_') and instrument != 'ANDES' and snr is None:
         snr = 100.0
     return observe_run(path, Path(stellar_npz) if stellar_npz else None, output=run_dir,
                        snr=snr, seed=seed, overwrite=overwrite, model_path=model_path)

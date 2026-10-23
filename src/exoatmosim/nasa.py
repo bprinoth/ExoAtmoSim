@@ -250,6 +250,9 @@ def find_parameters(planetname: str, resolution: int = 300_000,
     if len(rows) > 1:
         print(f'[WARNING] Found {len(rows)} rows for {planetname!r}; using first')
     params = parameters_from_row(rows[0], resolution=resolution, air=air)
+    if instrument.upper() == 'ANDES':
+        params.update(observatory='armazones', lat=-24.5892,
+                      long=-70.1916, elev=3046)
     if print_params:
         for key, value in params.items():
             print(f'{key:15} {value}')
