@@ -81,11 +81,20 @@ def _sky_location(cfg: Config):
         raise ImportError('Astropy is required for target altitude and BERV. Install exoatmosim[orbits].') from exc
     # legacy config convention: RA hourangle, DEC degrees, lat/long degrees.
     target = SkyCoord(ra=cfg['RA'], dec=cfg['DEC'], unit=(u.hourangle, u.deg), frame='icrs')
-    location = EarthLocation.from_geodetic(
-        lon=cfg.get_float('long') * u.deg,
-        lat=cfg.get_float('lat') * u.deg,
-        height=cfg.get_float('elev') * u.m,
-    )
+    if str(cfg.get('observatory', '')).strip().lower() in ('armazones', 'cerro armazones'):
+        # ESO ELT site: 24°36' S, 70°11'30" W, ~3046 m.
+        # The NASA template's legacy lat/long/elev describe Paranal;
+        # do not silently use those for ANDES.
+        location = EarthLocation.from_geodetic(
+            lon=(-70 - 11/60 - 30/3600) * u.deg,
+            lat=-24.6 * u.deg,
+            height=3046 * u.m)
+    else:
+        location = EarthLocation.from_geodetic(
+            lon=cfg.get_float('long') * u.deg,
+            lat=cfg.get_float('lat') * u.deg,
+            height=cfg.get_float('elev') * u.m,
+        )
     return target, location
 
 
