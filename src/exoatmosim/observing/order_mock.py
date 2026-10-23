@@ -55,7 +55,7 @@ def simulate_orders(order_wavelengths_nm, stellar_wave_nm, stellar_flux,
         raise ValueError('Velocities and occultation mask must be matching 1D exposure arrays')
     if not np.isfinite(np.r_[vs, vp, weights]).all() or np.any((weights < 0) | (weights > 1)):
         raise ValueError('Non-finite velocities or invalid 0..1 transit weights')
-    if not np.isfinite(snr) or snr <= 0:
+    if not callable(snr) and (not np.isfinite(snr) or snr <= 0):
         raise ValueError('SNR must be finite and positive')
     if blaze is not None:
         blaze = np.asarray(blaze, float)
@@ -96,7 +96,13 @@ def simulate_orders(order_wavelengths_nm, stellar_wave_nm, stellar_flux,
             flux *= telluric_on_order
         if blaze is not None:
             flux *= blaze[i][None, :]
-        sigma = np.abs(flux) / float(snr)
+        if callable(snr):
+            snr_values = np.asarray(snr(i, wl), dtype=float)
+            if snr_values.shape != flux.shape or not np.isfinite(snr_values).all() or np.any(snr_values <= 0):
+                raise ValueError(f'Order {i}: ETC SNR must be positive, finite and Nexp x Nwave')
+            sigma = np.abs(flux) / snr_values
+        else:
+            sigma = np.abs(flux) / float(snr)
         if add_noise:
             flux = flux + rng.normal(size=flux.shape) * sigma
         results.append((np.broadcast_to(wl, flux.shape).copy(), flux, sigma))
