@@ -83,6 +83,17 @@ class AndesETCInterpolatorTests(unittest.TestCase):
         np.testing.assert_allclose(telluric[1], .5)
         np.testing.assert_allclose(telluric[2], .05)
 
+    def test_sparse_computational_sampling_keeps_resel_snr(self):
+        from exoatmosim.andes_etc import spectrum_snr
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            self.write_grid(root)
+            grid = AndesETCGrid(root)
+            # Coarser than a resolution element: these are not detector pixels.
+            wave = np.array([500., 500.1, 500.2])
+            result = spectrum_snr(grid, wave, [1.0], resolving_power=100000.)
+            np.testing.assert_allclose(result, 10.)
+
     def test_missing_file_and_extrapolation_raise(self):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
