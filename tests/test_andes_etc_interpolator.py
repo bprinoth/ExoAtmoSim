@@ -94,6 +94,26 @@ class AndesETCInterpolatorTests(unittest.TestCase):
             result = spectrum_snr(grid, wave, [1.0], resolving_power=100000.)
             np.testing.assert_allclose(result, 10.)
 
+    def test_zero_etc_source_remains_zero_not_floored(self):
+        from exoatmosim.andes_etc import spectrum_snr
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            self.write_grid(root)
+            for am in (1.0, 1.5, 3.0):
+                path = root / f'airmass_{am:.1f}' / '20261023_ETCv5.6_UBV.csv'
+                rows = path.read_text().splitlines()
+                # Force a completely dark ETC wavelength bin (noise remains positive).
+                fields = rows[2].split(',')
+                fields[1] = '0'
+                fields[2] = '0'
+                rows[2] = ','.join(fields)
+                path.write_text('\\n'.join(rows) + '\\n')
+            grid = AndesETCGrid(root)
+            values = spectrum_snr(grid, np.array([500., 501., 502.]),
+                                  [1.0, 1.25, 3.0], 100000.)
+            self.assertTrue(np.all(values[:, 1] == 0))
+            self.assertTrue(np.all(values[:, [0, 2]] > 0))
+
     def test_missing_file_and_extrapolation_raise(self):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
