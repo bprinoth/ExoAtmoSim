@@ -191,11 +191,16 @@ def spectrum_snr(grid: AndesETCGrid, wavelength_nm, airmass, resolving_power):
         if np.any(selected):
             out[:, selected] = grid.evaluate(arm, wavelength_nm[selected], airmass).snr_resel
 
-    # Local sample width in log-lambda, appropriate even for irregular grids.
+    # The packaged ANDES grids are sparse computational samples, not
+    # calibrated detector pixels. Large local gaps must not be interpreted as
+    # physical pixel widths, or used to infer sub-unity pixels per resel.
+    # Use the actual local spacing only where it oversamples a resolution
+    # element; at coarse samples retain ETC per-resel S/N as a floor on
+    # the resolution-element representation (no artificial S/N boost).
     dln = np.gradient(np.log(wavelength_nm))
-    pixels_per_resel = 1. / (float(resolving_power) * dln)
-    if not np.isfinite(pixels_per_resel).all() or np.any(pixels_per_resel < 1):
-        raise ValueError('ANDES order sampling is not at least one sample per resolution element')
+    if not np.isfinite(dln).all() or np.any(dln <= 0):
+        raise ValueError('Invalid ANDES sampling intervals')
+    pixels_per_resel = np.maximum(1., 1. / (float(resolving_power) * dln))
     snr_pixel = out / np.sqrt(pixels_per_resel[None, :])
     if not np.isfinite(snr_pixel).all() or np.any(snr_pixel <= 0):
         raise ValueError('ETC produced zero or non-finite S/N; inspect ETC coverage/noise')
