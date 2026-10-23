@@ -210,7 +210,7 @@ def simulate_observation(config: str | Path, *, seed: int = 42, snr: float | Non
     if not model_path.is_file():
         raise FileNotFoundError(f'Planet model not found: {model_path}; run `exoatmosim spectrum` first')
     instrument = str(Config.from_file(path).get('instrument', '')).upper()
-    if not instrument.startswith('VIOLA_') and snr is None:
+    if not instrument.startswith('VIOLA_') and instrument != 'ANDES' and snr is None:
         snr = 100.0
     return observe_run(path, Path(stellar_npz) if stellar_npz else None, output=run_dir,
                        snr=snr, seed=seed, overwrite=overwrite, model_path=model_path)
