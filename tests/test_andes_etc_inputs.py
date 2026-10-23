@@ -35,9 +35,39 @@ class AndesETCInputTests(unittest.TestCase):
             'observatory armazones\\n'
             'lat -24.6276\\nlong -70.4051\\nelev 2635\\n')
         _, location = _sky_location(cfg)
-        self.assertAlmostEqual(location.lon.deg, -70.1916666667, places=5)
-        self.assertAlmostEqual(location.lat.deg, -24.6, places=5)
+        self.assertAlmostEqual(location.lon.deg, -70.1916, places=5)
+        self.assertAlmostEqual(location.lat.deg, -24.5892, places=5)
         self.assertAlmostEqual(location.height.to_value('m'), 3046, delta=2)
+
+    def test_andes_site_defaults_are_applied_to_archive_rows(self):
+        from unittest.mock import MagicMock, patch
+        from exoatmosim.nasa import find_parameters
+        from exoatmosim.config import Config
+        # Do not query NASA; exercise the real config-writing function.
+        import sys
+        from types import ModuleType
+        package = ModuleType('astroquery')
+        ipac = ModuleType('astroquery.ipac')
+        nexsci = ModuleType('astroquery.ipac.nexsci')
+        archive = ModuleType('astroquery.ipac.nexsci.nasa_exoplanet_archive')
+        archive.NasaExoplanetArchive = MagicMock()
+        archive.NasaExoplanetArchive.query_criteria.return_value = [object()]
+        with tempfile.TemporaryDirectory() as td:
+            with patch.dict(sys.modules, {'astroquery': package,
+                                          'astroquery.ipac': ipac,
+                                          'astroquery.ipac.nexsci': nexsci,
+                                          'astroquery.ipac.nexsci.nasa_exoplanet_archive': archive}), \\
+                 patch('exoatmosim.nasa.parameters_from_row',
+                       return_value={'RA':'23:06:29', 'DEC':'-05:02:29',
+                                     'lat':-24.6276,'long':-70.4051,'elev':2635}), \\
+                 patch('exoatmosim.instruments.instrument_resource'):
+                find_parameters('TRAPPIST-1 b', data_dir=td, instrument='ANDES',
+                                print_params=False)
+            cfg = Config.from_file(Path(td) / 'TRAPPIST-1_b' / 'config')
+            self.assertEqual(cfg['observatory'], 'armazones')
+            self.assertAlmostEqual(cfg.get_float('lat'), -24.5892)
+            self.assertAlmostEqual(cfg.get_float('long'), -70.1916)
+            self.assertAlmostEqual(cfg.get_float('elev'), 3046)
 
     def test_make_config_scaffolds_only_andes(self):
         with tempfile.TemporaryDirectory() as td:
