@@ -18,9 +18,13 @@ def make_config(planet: str, *, instrument: str = 'CRIRES_K',
                 refresh: bool = False, fresh: bool = False) -> Path:
     """Create or reuse a planet template (NASA is queried only if needed)."""
     from .backend_paths import discover_site_config
-    return resolve_config(None, planet=planet, site_config=discover_site_config(site_config),
+    path = resolve_config(None, planet=planet, site_config=discover_site_config(site_config),
                           data_dir=Path(data_dir), refresh_config=refresh, fresh=fresh,
                           instrument=instrument.upper())
+    if str(Config.from_file(path).get('instrument', '')).upper() == 'ANDES':
+        from .andes_etc_inputs import scaffold_andes_etc
+        scaffold_andes_etc(path.parent)
+    return path
 
 
 def _locations(config: str | Path, seed: int):
