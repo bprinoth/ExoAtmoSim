@@ -56,10 +56,10 @@ class AndesETCInputTests(unittest.TestCase):
             with patch.dict(sys.modules, {'astroquery': package,
                                           'astroquery.ipac': ipac,
                                           'astroquery.ipac.nexsci': nexsci,
-                                          'astroquery.ipac.nexsci.nasa_exoplanet_archive': archive}), \\
+                                          'astroquery.ipac.nexsci.nasa_exoplanet_archive': archive}), \
                  patch('exoatmosim.nasa.parameters_from_row',
                        return_value={'RA':'23:06:29', 'DEC':'-05:02:29',
-                                     'lat':-24.6276,'long':-70.4051,'elev':2635}), \\
+                                     'lat':-24.6276,'long':-70.4051,'elev':2635}), \
                  patch('exoatmosim.instruments.instrument_resource'):
                 find_parameters('TRAPPIST-1 b', data_dir=td, instrument='ANDES',
                                 print_params=False)
