@@ -107,7 +107,7 @@ class AndesETCInterpolatorTests(unittest.TestCase):
                 fields[1] = '0'
                 fields[2] = '0'
                 rows[2] = ','.join(fields)
-                path.write_text('\\n'.join(rows) + '\\n')
+                path.write_text('\n'.join(rows) + '\n')
             grid = AndesETCGrid(root)
             values = spectrum_snr(grid, np.array([500., 501., 502.]),
                                   [1.0, 1.25, 3.0], 100000.)
