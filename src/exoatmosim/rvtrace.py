@@ -273,7 +273,33 @@ class RVTraceEstimator:
         berv = []
         
     
-        observatory = EarthLocation.of_site(self.obs)
+        # Armazones is not available in every Astropy site registry. Prefer
+        # explicit config coordinates for this site, and use the same values
+        # for RV corrections as for the observation schedule.
+        site = str(self.obs).strip().lower()
+        if site in ('armazones', 'cerro armazones'):
+            observatory = EarthLocation.from_geodetic(
+                lon=self.config.get_float('long') * u.deg,
+                lat=self.config.get_float('lat') * u.deg,
+                height=self.config.get_float('elev') * u.m)
+        else:
+            try:
+                observatory = EarthLocation.of_site(self.obs)
+            except Exception as exc:
+                if all(key in self.config for key in ('lat', 'long', 'elev')):
+                    import warnings
+                    warnings.warn(
+                        f'Astropy site {self.obs!r} unavailable; using explicit '
+                        'config lat/long/elev for barycentric correction.',
+                        RuntimeWarning)
+                    observatory = EarthLocation.from_geodetic(
+                        lon=self.config.get_float('long') * u.deg,
+                        lat=self.config.get_float('lat') * u.deg,
+                        height=self.config.get_float('elev') * u.m)
+                else:
+                    raise ValueError(
+                        f'Unknown observatory {self.obs!r}; provide finite '
+                        'lat, long and elev in the planet config.') from exc
         
         try:
             sc = SkyCoord(self.RA+' '+self.DEC, unit=(u.hourangle, u.deg))
