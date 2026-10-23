@@ -155,3 +155,48 @@ class AndesETCGrid:
         atmospheric = interpolate('atmosphere')
         snr = np.divide(source, noise, out=np.zeros_like(source), where=noise > 0)
         return ETCArm(wl.copy(), snr, source, noise, background, atmospheric)
+
+
+def spectrum_snr(grid: AndesETCGrid, wavelength_nm, airmass, resolving_power):
+    """Return per-sample SNR for ANDES concatenated optical+IR segments.
+
+    The ETC provides SNR per resolution element. Each simulated wavelength
+    sample is assigned to one ETC arm; never average across arms. Convert
+    to independent-sample SNR using local pixels/resolution-element.
+    Assumes the model sampling is sufficiently finer than a resolution
+    element; the observation noise model remains an approximation.
+    """
+    wavelength_nm = np.asarray(wavelength_nm, float)
+    airmass = np.asarray(airmass, float)
+    if wavelength_nm.ndim != 1 or len(wavelength_nm) < 2 or np.any(np.diff(wavelength_nm) <= 0):
+        raise ValueError('ANDES wavelength samples must be strictly increasing')
+    if not np.isfinite(resolving_power) or resolving_power <= 0:
+        raise ValueError('Invalid ANDES resolving power')
+    out = np.empty((len(airmass), len(wavelength_nm)))
+    # At arm overlaps prefer UBV below 621.7, RIZ up to 950,
+    # and YJH above 950; boundaries follow actual loaded data.
+    bounds = {arm: (grid.data[arm]['wavelength'][0],
+                    grid.data[arm]['wavelength'][-1]) for arm in ARMS}
+    # Use nearest arm to the wavelength, favoring YJH at its lower edge.
+    choices = np.full(len(wavelength_nm), -1, dtype=int)
+    for k, arm in enumerate(ARMS):
+        lo, hi = bounds[arm]
+        mask = (wavelength_nm >= lo) & (wavelength_nm <= hi)
+        choices[mask] = k
+    if np.any(choices < 0):
+        missing = wavelength_nm[choices < 0]
+        raise ValueError(f'ETC does not cover ANDES wavelengths: {missing.min():.4f}-{missing.max():.4f} nm')
+    for k, arm in enumerate(ARMS):
+        selected = choices == k
+        if np.any(selected):
+            out[:, selected] = grid.evaluate(arm, wavelength_nm[selected], airmass).snr_resel
+
+    # Local sample width in log-lambda, appropriate even for irregular grids.
+    dln = np.gradient(np.log(wavelength_nm))
+    pixels_per_resel = 1. / (float(resolving_power) * dln)
+    if not np.isfinite(pixels_per_resel).all() or np.any(pixels_per_resel < 1):
+        raise ValueError('ANDES order sampling is not at least one sample per resolution element')
+    snr_pixel = out / np.sqrt(pixels_per_resel[None, :])
+    if not np.isfinite(snr_pixel).all() or np.any(snr_pixel <= 0):
+        raise ValueError('ETC produced zero or non-finite S/N; inspect ETC coverage/noise')
+    return snr_pixel
