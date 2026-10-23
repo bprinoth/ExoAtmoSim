@@ -111,7 +111,7 @@ def normalize_phase_rv_rows(ccf):
     finite = np.isfinite(ccf)
     count = finite.sum(axis=1)
     row_mean = np.divide(np.where(finite, ccf, 0.).sum(axis=1),
-                         count, out=np.full(len(phi), np.nan), where=count > 0)
+                         count, out=np.full(ccf.shape[0], np.nan), where=count > 0)
     centered = np.where(finite, ccf - row_mean[:, None], np.nan)
     row_std = np.nanstd(centered, axis=1, ddof=1)
     usable = (count >= 3) & np.isfinite(row_std) & (row_std > 0)
@@ -119,7 +119,7 @@ def normalize_phase_rv_rows(ccf):
         raise ValueError('Cannot plot phase–RV: all exposure rows have zero scatter')
     scaled = np.full_like(ccf, np.nan)
     scaled[usable] = centered[usable] / row_std[usable, None]
-        return scaled
+    return scaled
 
 
 def plot_phase_rv(phi, rv, ccf, destination):
