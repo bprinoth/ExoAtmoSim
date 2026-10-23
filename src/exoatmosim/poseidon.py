@@ -373,7 +373,18 @@ class PoseidonTransmissionModel:
             # the labels/spectra pair by validated types and shapes, never
             # silently unpack an arbitrary fourth value as a spectrum.
             if not isinstance(returned, (tuple, list)) or len(returned) < 3:
-                raise RuntimeError('Unexpected POSEIDON spectral_contribution return type')
+                detail = f'type={type(returned).__name__}'
+                if hasattr(returned, 'shape'):
+                    detail += f', shape={returned.shape}'
+                if isinstance(returned, dict):
+                    detail += f', keys={list(returned)[:12]}'
+                raise RuntimeError(
+                    'POSEIDON spectral_contribution did not return the expected '
+                    '(full_spectrum, labels, component_spectra). '
+                    + detail + '. This may indicate a nonphysical atmosphere '
+                    'or an incompatible installed POSEIDON fork. Inspect '
+                    'POSEIDON.contributions.spectral_contribution before '
+                    'generating templates; refusing to fabricate contributions.')
             raw_full = returned[0]
             raw_array = np.asarray(raw_full)
             if raw_array.squeeze().shape != (len(wl),):
