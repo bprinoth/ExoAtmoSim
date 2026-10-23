@@ -109,8 +109,12 @@ class AndesETCInterpolatorTests(unittest.TestCase):
                 rows[2] = ','.join(fields)
                 path.write_text('\n'.join(rows) + '\n')
             grid = AndesETCGrid(root)
-            values = spectrum_snr(grid, np.array([500., 501., 502.]),
-                                  [1.0, 1.25, 3.0], 100000.)
+            # All three synthetic arms intentionally share 500-502 nm.
+            # spectrum_snr chooses the last covering arm (YJH), so test
+            # the modified UBV arm directly rather than querying YJH.
+            result = grid.evaluate('UBV', [500., 501., 502.],
+                                   [1.0, 1.25, 3.0])
+            values = result.snr_resel
             self.assertTrue(np.all(values[:, 1] == 0))
             self.assertTrue(np.all(values[:, [0, 2]] > 0))
 
