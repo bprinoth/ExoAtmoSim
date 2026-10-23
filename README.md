@@ -370,3 +370,32 @@ The plot-only score is (CCF − off-trail mean) / off-trail standard deviation,
 where off-trail refers to |Vsys| ≥ 50 km/s (phase–RV uses |RV| ≥ 250 km/s).
 These are **not** POSEIDON's exact per-map significance algorithm or
 calibrated detection significances. The raw FITS CCF arrays remain unchanged.
+
+### ANDES ETC observations (experimental)
+
+Run `exoatmosim config --planet "TRAPPIST-1 b" --instrument ANDES`.
+Fill the nine CSV slots under `data/TRAPPIST-1_b/andes_etc/airmass_{1.0,1.5,3.0}/`
+with UBV, RIZ and YJH exports for each airmass. Original timestamped
+ETCv5.6 filenames are accepted. All nine runs must use the same exposure
+time, stellar source, seeing, transparency and detector mode, varying
+**only the airmass**. Set `exposure_time` in the planet config to the
+ETC integration time; `readout` remains scheduling overhead.
+
+After `atmosphere` and `spectrum`, run
+`exoatmosim observe data/TRAPPIST-1_b/config --seed 0 --overwrite`.
+For ANDES, `noise_model andes_etc` (default if omitted) selects the
+nine-file ETC interpolation and rejects `--snr`; `noise_model constant`
+retains the old approximation and allows `--snr`.
+The ETC S/N is per resolution element and is scaled to simulated
+sampling by the config `resolution`; make sure that resolution describes
+the actual ANDES configuration. Airmasses outside 1–3 or absent wavelength
+coverage raise errors, never extrapolation.
+
+Set `observatory armazones` and `tellurics True` to enable
+the existing Armazones telluric grid, with its configured local grid
+path. The ETC already includes broad atmospheric throughput, while
+ExoAtmoSim multiplies additional high-resolution telluric absorption:
+this is a first-pass relative-noise simulation, **not** yet a validated
+joint photon/noise/telluric forward model. The interpolator uses ETC
+source electrons and noise variances, but currently assumes matching
+ETC and simulated integration times and independent spectral samples.
