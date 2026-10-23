@@ -342,6 +342,26 @@ def run(config_path, stellar_npz, *, output=None, snr=None, seed=42, overwrite=F
             grid_file=resolve_grid_file(cfg.get('observatory','paranal'), config_path=config_path))
         plot_tellurics(tw, transmission, schedule, diagnostic / 'telluric_transmission.png')
         extra = dict(telluric_wavelength_nm=tw, telluric_transmission=transmission)
+    if etc_mode:
+        # Some official ETC bins contain zero source electrons, notably in
+        # deep absorption/throughput gaps. A Gaussian sigma from SNR=0 is
+        # undefined. Exclude only those samples from the computational
+        # wavelength segments, without inventing a detection/noise floor.
+        masked_orders = []
+        removed = 0
+        for index, wavelengths in enumerate(orders):
+            predicted = use_snr(index, wavelengths)
+            valid = np.all(np.isfinite(predicted) & (predicted > 0), axis=0)
+            discarded = int(np.count_nonzero(~valid))
+            removed += discarded
+            if np.count_nonzero(valid) < 2:
+                raise ValueError(f'ANDES segment {index}: fewer than two '
+                                 'positive-ETC-SNR wavelengths remain')
+            masked_orders.append(wavelengths[valid])
+        orders = masked_orders
+        if removed:
+            print(f'[ANDES ETC] Excluded {removed} wavelength samples with '
+                  'zero ETC source S/N (all exposure airmasses checked).')
     results = simulate_orders(orders, sw, sf, pw, pf, rv_star, rv_planet,
                               weight, snr=use_snr, seed=seed,
                               stellar_observer_frame=False, **extra)
