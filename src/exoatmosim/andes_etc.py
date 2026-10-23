@@ -202,6 +202,9 @@ def spectrum_snr(grid: AndesETCGrid, wavelength_nm, airmass, resolving_power):
         raise ValueError('Invalid ANDES sampling intervals')
     pixels_per_resel = np.maximum(1., 1. / (float(resolving_power) * dln))
     snr_pixel = out / np.sqrt(pixels_per_resel[None, :])
-    if not np.isfinite(snr_pixel).all() or np.any(snr_pixel <= 0):
-        raise ValueError('ETC produced zero or non-finite S/N; inspect ETC coverage/noise')
+    # Zero source electrons is a legitimate ETC result at unusable pixels.
+    # Retain zero here so the observation caller can exclude those wavelength
+    # samples explicitly; never replace them with a fictitious S/N floor.
+    if not np.isfinite(snr_pixel).all() or np.any(snr_pixel < 0):
+        raise ValueError('ETC produced negative or non-finite S/N')
     return snr_pixel
