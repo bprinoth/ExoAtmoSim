@@ -321,12 +321,12 @@ def run(config_path, stellar_npz, *, output=None, snr=None, seed=42, overwrite=F
     if etc_mode:
         if snr is not None:
             raise ValueError('ANDES ETC derives S/N from nine CSVs; do not pass --snr')
-        grid = AndesETCGrid(config_path.parent / 'andes_etc')
+        etc_grid = AndesETCGrid(config_path.parent / 'andes_etc')
         if not np.isclose(schedule.duration_seconds, cfg.get_float('exposure_time')):
             raise ValueError('ETC exposure_time must match the observation integration time')
         exposure_airmass = np.asarray(conditions['airmass'], float)
         def use_snr(index, wavelengths):
-            return spectrum_snr(grid, wavelengths, exposure_airmass, resolution)
+            return spectrum_snr(etc_grid, wavelengths, exposure_airmass, resolution)
         print('[ANDES ETC] Using 9 local CSVs; wavelength- and airmass-dependent S/N per resel')
     else:
         use_snr = float(snr) if snr is not None else cfg.get_float('SNR', 100.0)
@@ -336,9 +336,9 @@ def run(config_path, stellar_npz, *, output=None, snr=None, seed=42, overwrite=F
         from exoatmosim.observing.telluric_utils import plot_tellurics
         # Evaluate optical-depth interpolation at the instrument's native air-nm
         # sample wavelengths; no coarse 2000-point telluric sampling.
-        grid = np.unique(np.concatenate(orders))
+        telluric_wavelengths = np.unique(np.concatenate(orders))
         tw, transmission = grid_transmission(
-            schedule, grid, pwv_mm=np.asarray(conditions['pwv_mm'],float),
+            schedule, telluric_wavelengths, pwv_mm=np.asarray(conditions['pwv_mm'],float),
             grid_file=resolve_grid_file(cfg.get('observatory','paranal'), config_path=config_path))
         plot_tellurics(tw, transmission, schedule, diagnostic / 'telluric_transmission.png')
         extra = dict(telluric_wavelength_nm=tw, telluric_transmission=transmission)
