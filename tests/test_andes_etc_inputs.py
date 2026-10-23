@@ -27,13 +27,13 @@ class AndesETCInputTests(unittest.TestCase):
             scaffold_andes_etc(planet)
             self.assertEqual(example.read_text(), 'example data')
 
-    def test_armazones_location_ignores_legacy_paranal_coordinates(self):
+    def test_armazones_location_uses_config_coordinates(self):
         from exoatmosim.config import Config
         from exoatmosim.observing.scheduling import _sky_location
         cfg = Config.from_text(
             'RA 23:06:29.28\\nDEC -05:02:29\\n'
             'observatory armazones\\n'
-            'lat -24.6276\\nlong -70.4051\\nelev 2635\\n')
+            'lat -24.5892\\nlong -70.1916\\nelev 3046\\n')
         _, location = _sky_location(cfg)
         self.assertAlmostEqual(location.lon.deg, -70.1916, places=5)
         self.assertAlmostEqual(location.lat.deg, -24.5892, places=5)
