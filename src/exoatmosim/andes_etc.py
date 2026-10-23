@@ -51,8 +51,11 @@ def _read_csv(path: Path) -> dict[str, np.ndarray]:
         raise ValueError(f'{path}: invalid ETC numeric array')
     data = dict(zip(FIELDS, columns))
     wl = data['wavelength']
-    if wl.size < 3 or not np.isfinite(wl).all() or np.any(np.diff(wl) <= 0):
-        raise ValueError(f'{path}: wavelength grid must be finite and increasing')
+    # ETC rows are concatenated order/segment samples. Exported wavelength
+    # precision can yield equal adjacent values at order boundaries. Preserve
+    # those rows (and their distinct noise values) rather than deduplicating.
+    if wl.size < 3 or not np.isfinite(wl).all() or np.any(np.diff(wl) < 0):
+        raise ValueError(f'{path}: wavelengths must be finite and nondecreasing')
     for name, values in data.items():
         if not np.isfinite(values).all() or (name != 'wavelength' and np.any(values < 0)):
             raise ValueError(f'{path}: invalid {name} values')
@@ -121,13 +124,26 @@ class AndesETCGrid:
         if am.min() < AIRMASSES[0] or am.max() > AIRMASSES[-1]:
             raise ValueError('ETC airmass outside calibrated range [1.0, 3.0]')
 
+        # np.interp requires strictly increasing support. At equal exported
+        # wavelengths use the mean of all rows at that rounded wavelength.
+        # This preserves every row in the stored ETC grid and produces a
+        # deterministic value at the otherwise ambiguous boundary.
+        unique_x, starts, counts = np.unique(x, return_index=True,
+                                               return_counts=True)
+        if len(unique_x) != len(x):
+            x_interp = unique_x
+        else:
+            x_interp = x
+
         index = np.clip(np.searchsorted(AIRMASSES, am, side='right') - 1, 0, 1)
         t = (am - np.asarray(AIRMASSES)[index]) / (
             np.asarray(AIRMASSES)[index+1] - np.asarray(AIRMASSES)[index])
 
         def interpolate(name: str, *, squared=False):
             y = self.data[arm][name]
-            low = np.stack([np.interp(wl, x, row) for row in y])
+            if len(x_interp) != len(x):
+                y = np.stack([np.add.reduceat(row, starts) / counts for row in y])
+            low = np.stack([np.interp(wl, x_interp, row) for row in y])
             if squared:
                 low = low**2
             interp = low[index] * (1-t[:, None]) + low[index+1] * t[:, None]
