@@ -64,6 +64,25 @@ class AndesETCInterpolatorTests(unittest.TestCase):
             result = spectrum_snr(grid, wave, [1.0], resolving_power=100000.)
             np.testing.assert_allclose(result[0], 10. / np.sqrt(3.), rtol=1e-4)
 
+    def test_etc_noise_callable_preserves_telluric_noise_floor(self):
+        from exoatmosim.observing.order_mock import simulate_orders
+        wave = np.array([500., 500.002, 500.004])
+        kwargs = dict(order_wavelengths_nm=[wave],
+                      stellar_wave_nm=np.array([499., 500., 500.002, 500.004, 501.]),
+                      stellar_flux=np.ones(5),
+                      planet_wave_nm=np.array([499., 500., 500.002, 500.004, 501.]),
+                      planet_transmission=np.ones(5),
+                      rv_star_kms=[0.], rv_planet_kms=[0.],
+                      transit_weight=[0.], add_noise=False,
+                      snr=lambda i, wl: np.full((1, len(wl)), 20.))
+        clear = simulate_orders(**kwargs)[0]
+        telluric = simulate_orders(
+            **kwargs, telluric_wavelength_nm=wave,
+            telluric_transmission=np.full((1, len(wave)), .5))[0]
+        np.testing.assert_allclose(clear[2], .05)
+        np.testing.assert_allclose(telluric[1], .5)
+        np.testing.assert_allclose(telluric[2], .05)
+
     def test_missing_file_and_extrapolation_raise(self):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
