@@ -278,10 +278,12 @@ class RVTraceEstimator:
         # for RV corrections as for the observation schedule.
         site = str(self.obs).strip().lower()
         if site in ('armazones', 'cerro armazones'):
+            # Match the ANDES scheduling location; the default config
+            # geodetic coordinates historically refer to Paranal.
             observatory = EarthLocation.from_geodetic(
-                lon=self.config.get_float('long') * u.deg,
-                lat=self.config.get_float('lat') * u.deg,
-                height=self.config.get_float('elev') * u.m)
+                lon=(-70 - 11/60 - 30/3600) * u.deg,
+                lat=-24.6 * u.deg,
+                height=3046 * u.m)
         else:
             try:
                 observatory = EarthLocation.of_site(self.obs)
