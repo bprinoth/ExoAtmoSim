@@ -94,21 +94,16 @@ def plot_kp_vsys(kp, vsys, ccf, destination, *, molecule=None,
     return destination
 
 
-def plot_phase_rv(phi, rv, ccf, destination):
-    import matplotlib
-    matplotlib.use('Agg')
-    import matplotlib.pyplot as plt
-    from .plotting import publication_style
-    rv = np.asarray(rv, float)
-    phi = np.asarray(phi, float)
+def normalize_phase_rv_rows(ccf):
+    """Display-only row-centered, row-standardized phase–RV CCF.
+
+    Keeps each exposure's velocity-dependent contrast while suppressing
+    exposure-wide offsets; flat or fully masked rows are left NaN.
+    No normalization is applied to the underlying FITS or Kp–Vsys CCF.
+    """
     ccf = np.asarray(ccf, float)
-    if (phi.ndim != 1 or rv.ndim != 1 or ccf.shape != (len(phi), len(rv))
-            or not np.isfinite(phi).all() or not np.isfinite(rv).all()
-            or np.any(np.diff(rv) <= 0)):
-        raise ValueError('Invalid phase–RV data shape')
-    # Phase need not be monotonically increasing after eccentric geometry.
-    order = np.argsort(phi)
-    phi, ccf = phi[order], ccf[order]
+    if ccf.ndim != 2:
+        raise ValueError('Expected exposures x radial-velocity CCF matrix')
     # POSEIDON phase–RV visualization scales each exposure separately.
     # Do not use one global scatter: between-exposure offsets otherwise
     # dominate the display as horizontal stripes. Keep saved FITS and
@@ -124,6 +119,25 @@ def plot_phase_rv(phi, rv, ccf, destination):
         raise ValueError('Cannot plot phase–RV: all exposure rows have zero scatter')
     scaled = np.full_like(ccf, np.nan)
     scaled[usable] = centered[usable] / row_std[usable, None]
+        return scaled
+
+
+def plot_phase_rv(phi, rv, ccf, destination):
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    from .plotting import publication_style
+    rv = np.asarray(rv, float)
+    phi = np.asarray(phi, float)
+    ccf = np.asarray(ccf, float)
+    if (phi.ndim != 1 or rv.ndim != 1 or ccf.shape != (len(phi), len(rv))
+            or not np.isfinite(phi).all() or not np.isfinite(rv).all()
+            or np.any(np.diff(rv) <= 0)):
+        raise ValueError('Invalid phase–RV data shape')
+    # Phase need not be monotonically increasing after eccentric geometry.
+    order = np.argsort(phi)
+    phi, ccf = phi[order], ccf[order]
+    scaled = normalize_phase_rv_rows(ccf)
     bound = max(3., float(np.nanpercentile(np.abs(scaled), 99.9)))
     destination = Path(destination)
     destination.parent.mkdir(parents=True, exist_ok=True)
