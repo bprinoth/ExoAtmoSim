@@ -34,7 +34,7 @@ class AndesETCInterpolatorTests(unittest.TestCase):
             result = grid.evaluate('RIZ', [500., 501.5], [1., 1.25, 3.])
             self.assertEqual(result.snr_resel.shape, (3, 2))
             self.assertAlmostEqual(result.snr_resel[0, 0], 10)
-            self.assertAlmostEqual(result.snr_resel[-1, 0], 100./9./30.)
+            self.assertAlmostEqual(result.snr_resel[-1, 0], (100./3.)/30.)
             self.assertAlmostEqual(result.source_e_resel[1, 0], 100*(1+1/1.5)/2)
             self.assertAlmostEqual(result.noise_e_resel[1, 0]**2,
                                    (10**2 + 15**2)/2)
