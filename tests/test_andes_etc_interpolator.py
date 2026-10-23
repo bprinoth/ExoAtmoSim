@@ -40,6 +40,30 @@ class AndesETCInterpolatorTests(unittest.TestCase):
                                    (10**2 + 15**2)/2)
             np.testing.assert_allclose(result.snr_resel[:, 0], result.snr_resel[:, 1])
 
+    def test_rounded_order_boundary_duplicate(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            self.write_grid(root)
+            for am in (1.0, 1.5, 3.0):
+                path = root / f'airmass_{am:.1f}' / '20261023_ETCv5.6_UBV.csv'
+                lines = path.read_text().splitlines()
+                lines.insert(2, lines[1])  # same rounded wavelength at boundary
+                path.write_text('\n'.join(lines) + '\n')
+            result = AndesETCGrid(root).evaluate('UBV', [500., 501.], [1.25])
+            self.assertEqual(result.snr_resel.shape, (1, 2))
+            self.assertTrue(np.isfinite(result.snr_resel).all())
+
+    def test_per_resel_to_pixel_noise(self):
+        from exoatmosim.andes_etc import spectrum_snr
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            self.write_grid(root)
+            grid = AndesETCGrid(root)
+            # Wavelength interval of 1/300000 in log(lambda), so N~3 for R=100000.
+            wave = 500. * np.exp(np.arange(3) / 300000.)
+            result = spectrum_snr(grid, wave, [1.0], resolving_power=100000.)
+            np.testing.assert_allclose(result[0], 10. / np.sqrt(3.), rtol=1e-4)
+
     def test_missing_file_and_extrapolation_raise(self):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
