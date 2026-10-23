@@ -31,7 +31,7 @@ class AndesETCInputTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             path = Path(td) / 'planet' / 'config'
             path.parent.mkdir()
-            with patch('exoatmosim.full_crires.resolve_config', return_value=path):
+            with patch('exoatmosim.workflow.resolve_config', return_value=path):
                 path.write_text('instrument ANDES\nexposure_time 60\n')
                 with redirect_stdout(StringIO()):
                     self.assertEqual(workflow.make_config('planet', instrument='ANDES'), path)
