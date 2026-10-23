@@ -31,9 +31,9 @@ class AndesETCInputTests(unittest.TestCase):
         from exoatmosim.config import Config
         from exoatmosim.observing.scheduling import _sky_location
         cfg = Config.from_text(
-            'RA 23:06:29.28\\nDEC -05:02:29\\n'
-            'observatory armazones\\n'
-            'lat -24.5892\\nlong -70.1916\\nelev 3046\\n')
+            'RA 23:06:29.28\nDEC -05:02:29\n'
+            'observatory armazones\n'
+            'lat -24.5892\nlong -70.1916\nelev 3046\n')
         _, location = _sky_location(cfg)
         self.assertAlmostEqual(location.lon.deg, -70.1916, places=5)
         self.assertAlmostEqual(location.lat.deg, -24.5892, places=5)
